@@ -10,11 +10,13 @@ from __future__ import annotations
 import argparse
 import logging
 
-from backend.scripts.seed import countries, periods, ports, umbrella_regions
+from backend.scripts.seed import (
+    countries, ports, temporal_labels, umbrella_regions,
+)
 
 
 SEEDERS = {
-    "periods": periods.run,
+    "temporal": temporal_labels.run,
     "regions": umbrella_regions.run,
     "ports": ports.run,
     "countries": countries.run,

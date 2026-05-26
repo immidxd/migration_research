@@ -1,7 +1,6 @@
 import React from "react";
 
 import { useTerritoryList } from "../api/territories";
-import { usePeriods } from "../api/periods";
 import {
   Empire,
   MigrationVector,
@@ -62,12 +61,10 @@ const FilterPanel: React.FC = () => {
     kinds, empires, vectors,
     toggleKind, toggleEmpire, toggleVector,
     selectedTerritoryId, selectTerritory,
-    selectedPeriodId, selectPeriod,
   } = useFilters();
 
   const regionsQ = useTerritoryList(["region"]);
   const portsQ = useTerritoryList(["port", "border_crossing"]);
-  const periodsQ = usePeriods();
 
   return (
     <div className="text-white/85">
@@ -111,38 +108,6 @@ const FilterPanel: React.FC = () => {
             label={k.label}
           />
         ))}
-      </Section>
-
-      <Section title="Періоди">
-        {periodsQ.isLoading && <div className="text-white/40 text-sm">завантаження…</div>}
-        {periodsQ.data?.map((p) => (
-          <label
-            key={p.id}
-            className="flex items-start gap-2 py-1 cursor-pointer hover:text-white"
-          >
-            <input
-              type="radio"
-              name="period"
-              checked={selectedPeriodId === p.id}
-              onChange={() => selectPeriod(p.id)}
-              className="mt-1 accent-accent"
-            />
-            <span className="text-sm leading-tight">
-              <span>{p.name}</span>
-              <div className="text-xs text-white/40">
-                {p.date_from} → {p.date_to}
-              </div>
-            </span>
-          </label>
-        ))}
-        {selectedPeriodId != null && (
-          <button
-            className="text-xs text-white/40 hover:text-white mt-1"
-            onClick={() => selectPeriod(null)}
-          >
-            скинути
-          </button>
-        )}
       </Section>
 
       <Section title={`Регіони (${regionsQ.data?.count ?? 0})`}>

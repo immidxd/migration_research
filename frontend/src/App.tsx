@@ -15,7 +15,7 @@ const App: React.FC = () => {
           <MapView />
           <InspectorPanel />
         </div>
-        <div className="h-[140px] border-t border-black/40 bg-panel">
+        <div className="h-[110px] border-t border-black/40 bg-panel">
           <Timeline />
         </div>
       </main>

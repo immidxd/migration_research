@@ -10,8 +10,8 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.app.settings import PROJECT_ROOT, get_settings
-from backend.routers import periods as periods_router
 from backend.routers import sources as sources_router
+from backend.routers import temporal as temporal_router
 from backend.routers import territories as territories_router
 
 
@@ -46,7 +46,7 @@ def create_app() -> FastAPI:
         return JSONResponse({"status": "ok"})
 
     app.include_router(territories_router.router)
-    app.include_router(periods_router.router)
+    app.include_router(temporal_router.router)
     app.include_router(sources_router.router)
 
     # Serve the built frontend if present.

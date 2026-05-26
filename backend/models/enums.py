@@ -76,6 +76,27 @@ class DatePrecision(str, enum.Enum):
     UNKNOWN = "unknown"
 
 
+class TemporalLabelKind(str, enum.Enum):
+    """Granularity of a temporal label.
+
+    Containment hierarchy (broader → narrower):
+        century > half_century > quarter_century > decade > year
+    Plus orthogonal:
+        era_label   — fuzzy human label ("Кінець XIX ст.", "Поч. XX ст.")
+        named_period — researcher-defined named period (first-wave, interwar…)
+    All carry a canonical [year_from, year_to] range, so filtering reduces to
+    interval overlap regardless of which kind a fact was tagged with.
+    """
+
+    YEAR = "year"
+    DECADE = "decade"
+    QUARTER_CENTURY = "quarter_century"
+    HALF_CENTURY = "half_century"
+    CENTURY = "century"
+    ERA_LABEL = "era_label"
+    NAMED_PERIOD = "named_period"
+
+
 class CountMethod(str, enum.Enum):
     """How the people-count on a flow/event was derived from the source."""
 

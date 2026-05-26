@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import maplibregl, { Map, MapGeoJSONFeature } from "maplibre-gl";
 
 import { useTerritoryLayer } from "../api/territories";
-import { useFilters } from "../store";
+import { scopeRange, useFilters } from "../store";
 
 
 // CARTO Dark Matter — CORS-enabled, no API key, looks great as a backdrop
@@ -41,6 +41,7 @@ const MapView: React.FC = () => {
   const empires = useFilters((s) => s.empires);
   const selectedId = useFilters((s) => s.selectedTerritoryId);
   const selectTerritory = useFilters((s) => s.selectTerritory);
+  const scope = useFilters((s) => s.scope);
 
   const countriesQ = useTerritoryLayer(["country"]);
   const regionsQ = useTerritoryLayer(["region"]);
@@ -105,8 +106,8 @@ const MapView: React.FC = () => {
           ],
           "fill-opacity": [
             "case",
-            ["==", ["get", "id"], ["literal", -1]], 0.55,
-            0.32,
+            ["==", ["get", "in_scope"], false], 0.08,
+            0.55,
           ],
         },
       });
@@ -122,8 +123,12 @@ const MapView: React.FC = () => {
             "austro_hungarian", "#b3ecec",
             "#e9d8a6",
           ],
-          "line-width": 1.5,
-          "line-opacity": 0.9,
+          "line-width": 2,
+          "line-opacity": [
+            "case",
+            ["==", ["get", "in_scope"], false], 0.15,
+            1,
+          ],
         },
       });
       map.addLayer({
@@ -153,7 +158,7 @@ const MapView: React.FC = () => {
         paint: {
           "circle-radius": [
             "interpolate", ["linear"], ["zoom"],
-            3, 4, 6, 7, 10, 10,
+            3, 6, 6, 9, 10, 13,
           ],
           "circle-color": [
             "case",
@@ -161,8 +166,8 @@ const MapView: React.FC = () => {
             "#c084fc",
           ],
           "circle-stroke-color": "#0e1118",
-          "circle-stroke-width": 1.8,
-          "circle-opacity": 0.95,
+          "circle-stroke-width": 2,
+          "circle-opacity": 1,
         },
       });
       map.addLayer({
@@ -237,13 +242,27 @@ const MapView: React.FC = () => {
     const map = mapRef.current;
     if (!map || !loadedRef.current) return;
 
+    const scopeR = scopeRange(scope);
+    const tagFeature = (f: GeoJSON.Feature) => {
+      const p: any = f.properties || {};
+      // Territories don't yet carry valid_from/valid_to in the API payload;
+      // when they do, this will dim out-of-scope features. For now every
+      // feature is in-scope.
+      const inScope = !scopeR || (
+        (p.valid_year_from == null || p.valid_year_from <= scopeR[1]) &&
+        (p.valid_year_to == null || p.valid_year_to >= scopeR[0])
+      );
+      return { ...f, properties: { ...p, in_scope: inScope } };
+    };
     const filterByEmpire = (fc: GeoJSON.FeatureCollection | undefined) => {
       if (!fc) return EMPTY_FC;
-      const features = fc.features.filter((f) => {
-        const emp = (f.properties as any)?.empire;
-        if (!emp) return true;
-        return empires.has(emp);
-      });
+      const features = fc.features
+        .filter((f) => {
+          const emp = (f.properties as any)?.empire;
+          if (!emp) return true;
+          return empires.has(emp);
+        })
+        .map(tagFeature);
       return { type: "FeatureCollection" as const, features };
     };
 
@@ -253,7 +272,7 @@ const MapView: React.FC = () => {
       ?.setData(filterByEmpire(regionsQ.data));
     (map.getSource("ports") as maplibregl.GeoJSONSource | undefined)
       ?.setData(filterByEmpire(portsQ.data));
-  }, [countriesQ.data, regionsQ.data, portsQ.data, empires]);
+  }, [countriesQ.data, regionsQ.data, portsQ.data, empires, scope]);
 
   // --- visibility toggles ---
   useEffect(() => {
@@ -319,6 +338,13 @@ const MapView: React.FC = () => {
         країни: {countriesQ.data?.features.length ?? 0} ·
         регіони: {regionsQ.data?.features.length ?? 0} ·
         точки: {portsQ.data?.features.length ?? 0}
+        {scope.mode !== "none" && (
+          <span className="ml-2 text-accent">
+            ↳ {scope.mode === "year" ? `рік ${scope.year}` :
+                scope.mode === "range" ? `${scope.yearFrom}–${scope.yearTo}` :
+                scope.label.label}
+          </span>
+        )}
       </div>
     </>
   );

@@ -57,8 +57,8 @@ class MigrationFlow(Base):
         ForeignKey("territories.id", ondelete="RESTRICT"), nullable=False, index=True
     )
 
-    period_id: Mapped[int | None] = mapped_column(
-        ForeignKey("periods.id", ondelete="SET NULL"), index=True
+    temporal_label_id: Mapped[int | None] = mapped_column(
+        ForeignKey("temporal_labels.id", ondelete="SET NULL"), index=True
     )
     date_from: Mapped[date | None] = mapped_column(Date)
     date_to: Mapped[date | None] = mapped_column(Date)
