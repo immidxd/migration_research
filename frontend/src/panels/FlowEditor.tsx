@@ -4,7 +4,7 @@ import { Drawer, Form, Input, InputNumber, Radio, Select, Button, Modal, message
 type TimeMode = "label" | "year" | "range";
 
 import { useCreateFlow, useCreateSource } from "../api/flows";
-import { SourcePicker, TerritoryPicker } from "./pickers";
+import { drawerBodyOrSelf, SourcePicker, TerritoryPicker } from "./pickers";
 import { useTemporalLabels } from "../api/temporal";
 
 const VECTOR_OPTS = [
@@ -221,7 +221,7 @@ export const FlowEditor: React.FC<{ open: boolean; onClose: () => void }> = ({ o
               value={originPrec}
               onChange={setOriginPrec}
               options={PRECISION_OPTS}
-              getPopupContainer={(t) => t.parentElement ?? document.body}
+              getPopupContainer={drawerBodyOrSelf}
             />
           </Form.Item>
 
@@ -238,7 +238,7 @@ export const FlowEditor: React.FC<{ open: boolean; onClose: () => void }> = ({ o
               value={destPrec}
               onChange={setDestPrec}
               options={PRECISION_OPTS}
-              getPopupContainer={(t) => t.parentElement ?? document.body}
+              getPopupContainer={drawerBodyOrSelf}
             />
           </Form.Item>
 
@@ -299,7 +299,7 @@ export const FlowEditor: React.FC<{ open: boolean; onClose: () => void }> = ({ o
                   label: `[${l.kind}] ${l.label} · ${l.year_from}–${l.year_to}`,
                 }))}
                 style={{ width: "100%" }}
-                getPopupContainer={(t) => t.parentElement ?? document.body}
+                getPopupContainer={drawerBodyOrSelf}
               />
             )}
           </Form.Item>
@@ -309,7 +309,7 @@ export const FlowEditor: React.FC<{ open: boolean; onClose: () => void }> = ({ o
               value={vector}
               onChange={setVector}
               options={VECTOR_OPTS}
-              getPopupContainer={(t) => t.parentElement ?? document.body}
+              getPopupContainer={drawerBodyOrSelf}
             />
           </Form.Item>
           <Form.Item label="Транспорт">
@@ -317,7 +317,7 @@ export const FlowEditor: React.FC<{ open: boolean; onClose: () => void }> = ({ o
               value={transport}
               onChange={setTransport}
               options={TRANSPORT_OPTS}
-              getPopupContainer={(t) => t.parentElement ?? document.body}
+              getPopupContainer={drawerBodyOrSelf}
             />
           </Form.Item>
 

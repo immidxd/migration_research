@@ -11,6 +11,19 @@ import {
 
 type Option = { label: React.ReactNode; value: number; raw: any };
 
+/** Walk up the DOM looking for the antd Drawer body. Returning it as the
+ *  popup container guarantees dropdown items are clickable — anchoring to
+ *  `parentElement` was unreliable because Form.Item / Form wrappers have
+ *  `overflow:hidden` that clipped the popup. */
+export function drawerBodyOrSelf(trigger: HTMLElement): HTMLElement {
+  let el: HTMLElement | null = trigger;
+  while (el) {
+    if (el.classList?.contains("ant-drawer-body")) return el;
+    el = el.parentElement;
+  }
+  return trigger.parentElement ?? document.body;
+}
+
 
 export const TerritoryPicker: React.FC<{
   value: number | null;
@@ -79,7 +92,7 @@ export const TerritoryPicker: React.FC<{
       defaultActiveFirstOption={false}
       // Render the popup inside the Drawer's DOM, not at document.body —
       // otherwise the Drawer's overlay can intercept clicks on dropdown items.
-      getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
+      getPopupContainer={drawerBodyOrSelf}
     />
   );
 };
@@ -136,7 +149,7 @@ export const SourcePicker: React.FC<{
         notFoundContent={loading ? <Spin size="small" /> : "нічого не знайдено"}
         options={options}
         style={{ width: "100%" }}
-        getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
+        getPopupContainer={drawerBodyOrSelf}
       />
       <button
         type="button"

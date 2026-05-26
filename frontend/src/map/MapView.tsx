@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import maplibregl, { Map, MapGeoJSONFeature } from "maplibre-gl";
 
 import { useFlowsGeoJSON } from "../api/flows";
@@ -91,6 +91,10 @@ const MapView: React.FC = () => {
   const ref = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const loadedRef = useRef(false);
+  // Bumped every time the map's "load" event fires (initial mount AND
+  // every theme-change re-init). Used as a dep so the data-feed effect
+  // re-runs into the new map's empty sources.
+  const [mapTick, setMapTick] = useState(0);
 
   const kinds = useFilters((s) => s.kinds);
   const empires = useFilters((s) => s.empires);
@@ -127,6 +131,7 @@ const MapView: React.FC = () => {
 
     map.on("load", () => {
       loadedRef.current = true;
+      setMapTick((t) => t + 1);
       const C = themeColors(themeMode);
 
       for (const id of ["countries", "regions", "ports", "flows"] as const) {
@@ -444,7 +449,7 @@ const MapView: React.FC = () => {
     (map.getSource("ports") as maplibregl.GeoJSONSource | undefined)
       ?.setData(filterByEmpire(portsQ.data));
 
-  }, [countriesQ.data, regionsQ.data, portsQ.data, empires, scope]);
+  }, [countriesQ.data, regionsQ.data, portsQ.data, empires, scope, mapTick]);
 
   // Recompute flow data when vector toggles change (without refetching)
   const vectorsState = useFilters((s) => s.vectors);
@@ -464,7 +469,7 @@ const MapView: React.FC = () => {
         })),
     };
     (map.getSource("flows") as maplibregl.GeoJSONSource | undefined)?.setData(flowFc);
-  }, [vectorsState, flowsQ.data]);
+  }, [vectorsState, flowsQ.data, mapTick]);
 
   // --- visibility toggles ---
   useEffect(() => {
