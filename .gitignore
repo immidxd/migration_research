@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.env.local
+*.log
+
+# Secrets / credentials
+secrets/
+*.json.key
+*-credentials.json
+service-account*.json
+
+# Node / frontend
+node_modules/
+frontend/build/
+frontend/.eslintcache
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Data — raw downloads kept out of git, only fixtures committed
+data/basemaps/*
+data/territories/raw/
+!data/territories/.gitkeep
+!data/basemaps/.gitkeep
+!data/fixtures/.gitkeep
+
+# Alembic local cache
+backend/migrations/__pycache__/
+
+# Build artefacts
+dist/
+build/
