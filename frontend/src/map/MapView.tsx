@@ -87,14 +87,82 @@ function themeColors(mode: "dark" | "light") {
 
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 
+
+type SourceSnapshot = {
+  countries: GeoJSON.FeatureCollection | undefined;
+  regions: GeoJSON.FeatureCollection | undefined;
+  ports: GeoJSON.FeatureCollection | undefined;
+  flows: any;
+  empires: Set<string>;
+  vectors: Set<string>;
+  scope: any;
+};
+
+/** Single point of truth for pushing data into the four map sources.
+ *  Called both inside the style 'load' handler (synchronous initial push)
+ *  and from a useEffect whenever inputs change — same logic either way so
+ *  there's no second code path that can drift. */
+function pushAllData(
+  map: Map,
+  s: SourceSnapshot,
+  setCounts: (c: { c: number; r: number; p: number; f: number }) => void,
+) {
+  const scopeR = scopeRange(s.scope);
+  const tag = (f: GeoJSON.Feature) => {
+    const p: any = f.properties || {};
+    const inScope = !scopeR || (
+      (p.valid_year_from == null || p.valid_year_from <= scopeR[1]) &&
+      (p.valid_year_to == null || p.valid_year_to >= scopeR[0])
+    );
+    return { ...f, properties: { ...p, in_scope: inScope } };
+  };
+  const empiresFilter = (fc: GeoJSON.FeatureCollection | undefined) => {
+    if (!fc) return EMPTY_FC;
+    const features = fc.features
+      .filter((f) => {
+        const e = (f.properties as any)?.empire;
+        return !e || s.empires.has(e);
+      })
+      .map(tag);
+    return { type: "FeatureCollection" as const, features };
+  };
+
+  const cFC = empiresFilter(s.countries);
+  const rFC = empiresFilter(s.regions);
+  const pFC = empiresFilter(s.ports);
+
+  const flowFC = s.flows
+    ? {
+        type: "FeatureCollection" as const,
+        features: (s.flows.features as any[])
+          .filter((f) => s.vectors.has(f.properties.vector))
+          .map((f) => ({
+            ...f,
+            geometry: {
+              type: "LineString" as const,
+              coordinates: curveLine(f.geometry.coordinates as [number, number][]),
+            },
+          })),
+      }
+    : EMPTY_FC;
+
+  (map.getSource("countries") as maplibregl.GeoJSONSource | undefined)?.setData(cFC);
+  (map.getSource("regions") as maplibregl.GeoJSONSource | undefined)?.setData(rFC);
+  (map.getSource("ports") as maplibregl.GeoJSONSource | undefined)?.setData(pFC);
+  (map.getSource("flows") as maplibregl.GeoJSONSource | undefined)?.setData(flowFC);
+
+  setCounts({
+    c: cFC.features.length,
+    r: rFC.features.length,
+    p: pFC.features.length,
+    f: flowFC.features.length,
+  });
+}
+
 const MapView: React.FC = () => {
   const ref = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const loadedRef = useRef(false);
-  // Bumped every time the map's "load" event fires (initial mount AND
-  // every theme-change re-init). Used as a dep so the data-feed effect
-  // re-runs into the new map's empty sources.
-  const [mapTick, setMapTick] = useState(0);
 
   const kinds = useFilters((s) => s.kinds);
   const empires = useFilters((s) => s.empires);
@@ -102,6 +170,7 @@ const MapView: React.FC = () => {
   const selectTerritory = useFilters((s) => s.selectTerritory);
   const scope = useFilters((s) => s.scope);
   const themeMode = useFilters((s) => s.theme);
+  const vectorsState = useFilters((s) => s.vectors);
 
   const countriesQ = useTerritoryLayer(["country"]);
   const regionsQ = useTerritoryLayer(["region"]);
@@ -109,6 +178,32 @@ const MapView: React.FC = () => {
   const flowsQ = useFlowsGeoJSON({
     covering_year: scope.mode === "year" ? scope.year : undefined,
   });
+
+  // --- Ref that always holds the freshest query data + filter state.
+  // Used so the synchronous load-handler can push initial data without
+  // depending on React's effect-scheduling order (which was the source of
+  // the "polygons never appear" bug).
+  const stateRef = useRef({
+    countries: undefined as GeoJSON.FeatureCollection | undefined,
+    regions: undefined as GeoJSON.FeatureCollection | undefined,
+    ports: undefined as GeoJSON.FeatureCollection | undefined,
+    flows: undefined as any,
+    empires,
+    vectors: vectorsState,
+    scope,
+  });
+  stateRef.current = {
+    countries: countriesQ.data,
+    regions: regionsQ.data,
+    ports: portsQ.data,
+    flows: flowsQ.data,
+    empires,
+    vectors: vectorsState,
+    scope,
+  };
+
+  // Counts after empires/vectors filtering, surfaced in the bottom-left chip
+  const [renderedCounts, setRenderedCounts] = useState({ c: 0, r: 0, p: 0, f: 0 });
 
   // --- init map once ---
   useEffect(() => {
@@ -131,7 +226,6 @@ const MapView: React.FC = () => {
 
     map.on("load", () => {
       loadedRef.current = true;
-      setMapTick((t) => t + 1);
       const C = themeColors(themeMode);
 
       for (const id of ["countries", "regions", "ports", "flows"] as const) {
@@ -397,6 +491,11 @@ const MapView: React.FC = () => {
       // Force a resize after one tick — pywebview sometimes mounts the
       // container with no width on first paint.
       setTimeout(() => map.resize(), 50);
+
+      // --- Synchronous initial data push, using the freshest values from
+      // the ref. This sidesteps any React effect-scheduling race; the
+      // sources are now never left empty after style load.
+      pushAllData(map, stateRef.current, setRenderedCounts);
     });
 
     // Also resize whenever the window changes
@@ -417,59 +516,10 @@ const MapView: React.FC = () => {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !loadedRef.current) return;
+    pushAllData(map, stateRef.current, setRenderedCounts);
 
-    const scopeR = scopeRange(scope);
-    const tagFeature = (f: GeoJSON.Feature) => {
-      const p: any = f.properties || {};
-      // Territories don't yet carry valid_from/valid_to in the API payload;
-      // when they do, this will dim out-of-scope features. For now every
-      // feature is in-scope.
-      const inScope = !scopeR || (
-        (p.valid_year_from == null || p.valid_year_from <= scopeR[1]) &&
-        (p.valid_year_to == null || p.valid_year_to >= scopeR[0])
-      );
-      return { ...f, properties: { ...p, in_scope: inScope } };
-    };
-    const filterByEmpire = (fc: GeoJSON.FeatureCollection | undefined) => {
-      if (!fc) return EMPTY_FC;
-      const features = fc.features
-        .filter((f) => {
-          const emp = (f.properties as any)?.empire;
-          if (!emp) return true;
-          return empires.has(emp);
-        })
-        .map(tagFeature);
-      return { type: "FeatureCollection" as const, features };
-    };
+  }, [countriesQ.data, regionsQ.data, portsQ.data, flowsQ.data, empires, scope, vectorsState]);
 
-    (map.getSource("countries") as maplibregl.GeoJSONSource | undefined)
-      ?.setData(filterByEmpire(countriesQ.data));
-    (map.getSource("regions") as maplibregl.GeoJSONSource | undefined)
-      ?.setData(filterByEmpire(regionsQ.data));
-    (map.getSource("ports") as maplibregl.GeoJSONSource | undefined)
-      ?.setData(filterByEmpire(portsQ.data));
-
-  }, [countriesQ.data, regionsQ.data, portsQ.data, empires, scope, mapTick]);
-
-  // Recompute flow data when vector toggles change (without refetching)
-  const vectorsState = useFilters((s) => s.vectors);
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !loadedRef.current || !flowsQ.data) return;
-    const flowFc = {
-      type: "FeatureCollection" as const,
-      features: flowsQ.data.features
-        .filter((f) => vectorsState.has(f.properties.vector as any))
-        .map((f) => ({
-          ...f,
-          geometry: {
-            type: "LineString" as const,
-            coordinates: curveLine(f.geometry.coordinates as [number, number][]),
-          },
-        })),
-    };
-    (map.getSource("flows") as maplibregl.GeoJSONSource | undefined)?.setData(flowFc);
-  }, [vectorsState, flowsQ.data, mapTick]);
 
   // --- visibility toggles ---
   useEffect(() => {
@@ -564,9 +614,8 @@ const MapView: React.FC = () => {
           border: "1px solid var(--border)",
         }}
       >
-        країни: {countriesQ.data?.features.length ?? 0} ·
-        регіони: {regionsQ.data?.features.length ?? 0} ·
-        точки: {portsQ.data?.features.length ?? 0}
+        намальовано: країн {renderedCounts.c} · регіонів {renderedCounts.r} ·
+        точок {renderedCounts.p} · потоків {renderedCounts.f}
         {scope.mode !== "none" && (
           <span className="ml-2 text-accent">
             ↳ {scope.mode === "year" ? `рік ${scope.year}` :
