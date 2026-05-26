@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { Drawer, Form, Input, InputNumber, Radio, Select, Button, Modal, message } from "antd";
 
+type TimeMode = "label" | "year" | "range";
+
 import { useCreateFlow, useCreateSource } from "../api/flows";
 import { SourcePicker, TerritoryPicker } from "./pickers";
 import { useTemporalLabels } from "../api/temporal";
@@ -37,14 +39,21 @@ const PRECISION_OPTS = [
 export const FlowEditor: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const [origin, setOrigin] = useState<number | null>(null);
   const [destination, setDestination] = useState<number | null>(null);
+
+  // Time entry — three exclusive modes that all resolve to the canonical
+  // date_from/date_to/date_precision triple on save.
+  const [timeMode, setTimeMode] = useState<TimeMode>("range");
   const [labelId, setLabelId] = useState<number | null>(null);
+  const [year, setYear] = useState<number | null>(null);
+  const [yearFrom, setYearFrom] = useState<number | null>(null);
+  const [yearTo, setYearTo] = useState<number | null>(null);
 
-  const [vector, setVector] = useState<string>("transatlantic");
-  const [transport, setTransport] = useState<string>("sea");
+  const [vector, setVector] = useState<string>("intra_imperial_east");
+  const [transport, setTransport] = useState<string>("rail");
   const [originPrec, setOriginPrec] = useState<string>("gubernia");
-  const [destPrec, setDestPrec] = useState<string>("country");
+  const [destPrec, setDestPrec] = useState<string>("region");
 
-  const [countMethod, setCountMethod] = useState<"exact" | "estimate" | "range" | "unknown">("estimate");
+  const [countMethod, setCountMethod] = useState<"exact" | "estimate" | "range" | "unknown">("exact");
   const [count, setCount] = useState<number | null>(null);
   const [countLower, setCountLower] = useState<number | null>(null);
   const [countUpper, setCountUpper] = useState<number | null>(null);
@@ -57,11 +66,57 @@ export const FlowEditor: React.FC<{ open: boolean; onClose: () => void }> = ({ o
   const createFlow = useCreateFlow();
 
   const reset = () => {
-    setOrigin(null); setDestination(null); setLabelId(null);
-    setVector("transatlantic"); setTransport("sea");
-    setOriginPrec("gubernia"); setDestPrec("country");
-    setCountMethod("estimate"); setCount(null); setCountLower(null); setCountUpper(null);
+    setOrigin(null); setDestination(null);
+    setTimeMode("range"); setLabelId(null);
+    setYear(null); setYearFrom(null); setYearTo(null);
+    setVector("intra_imperial_east"); setTransport("rail");
+    setOriginPrec("gubernia"); setDestPrec("region");
+    setCountMethod("exact"); setCount(null); setCountLower(null); setCountUpper(null);
     setNotes(""); setSourceIds([]);
+  };
+
+  /** Resolve the active time inputs into the API triple. */
+  const resolveTime = (): {
+    temporal_label_id: number | null;
+    date_from: string | null;
+    date_to: string | null;
+    date_precision: string;
+  } | null => {
+    if (timeMode === "label") {
+      if (labelId == null) return { temporal_label_id: null, date_from: null, date_to: null, date_precision: "unknown" };
+      const lbl = labelsQ.data?.find((l) => l.id === labelId);
+      if (!lbl) return null;
+      return {
+        temporal_label_id: lbl.id,
+        date_from: `${lbl.year_from}-01-01`,
+        date_to: `${lbl.year_to}-12-31`,
+        date_precision: lbl.kind === "year" ? "year" : "period",
+      };
+    }
+    if (timeMode === "year") {
+      if (year == null) return { temporal_label_id: null, date_from: null, date_to: null, date_precision: "unknown" };
+      return {
+        temporal_label_id: null,
+        date_from: `${year}-01-01`,
+        date_to: `${year}-12-31`,
+        date_precision: "year",
+      };
+    }
+    // range
+    if (yearFrom == null || yearTo == null) {
+      message.error("Вкажіть «з» і «по» року");
+      return null;
+    }
+    if (yearFrom > yearTo) {
+      message.error("«з» має бути не пізніше за «по»");
+      return null;
+    }
+    return {
+      temporal_label_id: null,
+      date_from: `${yearFrom}-01-01`,
+      date_to: `${yearTo}-12-31`,
+      date_precision: "year",
+    };
   };
 
   const submit = async () => {
@@ -77,15 +132,13 @@ export const FlowEditor: React.FC<{ open: boolean; onClose: () => void }> = ({ o
       message.error("Для діапазону потрібні нижня і верхня межа");
       return;
     }
-    const sel = labelsQ.data?.find((l) => l.id === labelId);
+    const t = resolveTime();
+    if (!t) return;
     try {
       await createFlow.mutateAsync({
         origin_territory_id: origin,
         destination_territory_id: destination,
-        temporal_label_id: labelId,
-        date_from: sel ? `${sel.year_from}-01-01` : null,
-        date_to: sel ? `${sel.year_to}-12-31` : null,
-        date_precision: sel ? (sel.kind === "year" ? "year" : "period") : "unknown",
+        ...t,
         count: countMethod === "exact" || countMethod === "estimate" ? count : null,
         count_lower: countMethod === "range" ? countLower : null,
         count_upper: countMethod === "range" ? countUpper : null,
@@ -144,20 +197,65 @@ export const FlowEditor: React.FC<{ open: boolean; onClose: () => void }> = ({ o
             <Select value={destPrec} onChange={setDestPrec} options={PRECISION_OPTS} />
           </Form.Item>
 
-          <Form.Item label="Часова мітка (період / епоха / декада / рік)">
-            <Select
-              showSearch
-              optionFilterProp="label"
-              allowClear
-              placeholder="оберіть мітку…"
-              value={labelId ?? undefined}
-              onChange={(v) => setLabelId(v ?? null)}
-              options={(labelsQ.data ?? []).map((l) => ({
-                value: l.id,
-                label: `[${l.kind}] ${l.label} · ${l.year_from}–${l.year_to}`,
-              }))}
-              style={{ width: "100%" }}
-            />
+          <Form.Item
+            label="Час"
+            help="Один з трьох режимів. Усе зводиться до канонічного діапазону років у БД."
+          >
+            <Radio.Group
+              value={timeMode}
+              onChange={(e) => setTimeMode(e.target.value)}
+              style={{ marginBottom: 8 }}
+            >
+              <Radio.Button value="range">діапазон років</Radio.Button>
+              <Radio.Button value="year">конкретний рік</Radio.Button>
+              <Radio.Button value="label">мітка (період / епоха / декада)</Radio.Button>
+            </Radio.Group>
+
+            {timeMode === "year" && (
+              <InputNumber
+                min={1500}
+                max={2100}
+                value={year ?? undefined}
+                onChange={(v) => setYear(v != null ? Number(v) : null)}
+                placeholder="напр. 1893"
+                style={{ width: "100%" }}
+              />
+            )}
+
+            {timeMode === "range" && (
+              <div style={{ display: "flex", gap: 8 }}>
+                <InputNumber
+                  min={1500} max={2100}
+                  value={yearFrom ?? undefined}
+                  onChange={(v) => setYearFrom(v != null ? Number(v) : null)}
+                  placeholder="з (рік)"
+                  style={{ flex: 1 }}
+                />
+                <InputNumber
+                  min={yearFrom ?? 1500} max={2100}
+                  value={yearTo ?? undefined}
+                  onChange={(v) => setYearTo(v != null ? Number(v) : null)}
+                  placeholder="по (рік)"
+                  style={{ flex: 1 }}
+                />
+              </div>
+            )}
+
+            {timeMode === "label" && (
+              <Select
+                showSearch
+                optionFilterProp="label"
+                allowClear
+                placeholder="оберіть мітку…"
+                value={labelId ?? undefined}
+                onChange={(v) => setLabelId(v ?? null)}
+                options={(labelsQ.data ?? []).map((l) => ({
+                  value: l.id,
+                  label: `[${l.kind}] ${l.label} · ${l.year_from}–${l.year_to}`,
+                }))}
+                style={{ width: "100%" }}
+              />
+            )}
           </Form.Item>
 
           <Form.Item label="Вектор" required>

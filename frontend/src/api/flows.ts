@@ -72,6 +72,39 @@ export function useCreateFlow() {
   });
 }
 
+export interface FlowFeature
+  extends GeoJSON.Feature<GeoJSON.LineString, {
+    id: number;
+    vector: string;
+    transport_mode: string;
+    count: number | null;
+    count_lower: number | null;
+    count_upper: number | null;
+    count_method: string;
+    origin_name: string;
+    destination_name: string;
+    temporal_label: string | null;
+    date_from: string | null;
+    date_to: string | null;
+    date_precision: string;
+    provisional: boolean;
+    source_count: number;
+  }> {}
+
+export interface FlowFeatureCollection
+  extends GeoJSON.FeatureCollection<GeoJSON.LineString, FlowFeature["properties"]> {}
+
+export function useFlowsGeoJSON(params?: { covering_year?: number; vector?: string[] }) {
+  const qs = new URLSearchParams();
+  if (params?.covering_year != null) qs.set("covering_year", String(params.covering_year));
+  if (params?.vector) for (const v of params.vector) qs.append("vector", v);
+  const s = qs.toString();
+  return useQuery<FlowFeatureCollection>({
+    queryKey: ["flows-geo", s],
+    queryFn: async () => (await api.get(`/migration-flows.geojson${s ? `?${s}` : ""}`)).data,
+  });
+}
+
 export function useDeleteFlow() {
   const qc = useQueryClient();
   return useMutation({

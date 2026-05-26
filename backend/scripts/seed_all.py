@@ -11,13 +11,16 @@ import argparse
 import logging
 
 from backend.scripts.seed import (
-    countries, ports, temporal_labels, umbrella_regions,
+    countries, gubernias, intra_imperial, ports,
+    temporal_labels, umbrella_regions,
 )
 
 
 SEEDERS = {
     "temporal": temporal_labels.run,
     "regions": umbrella_regions.run,
+    "gubernias": gubernias.run,
+    "intra_imperial": intra_imperial.run,
     "ports": ports.run,
     "countries": countries.run,
 }

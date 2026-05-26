@@ -81,6 +81,86 @@ def list_flows(
     return [dict(r) for r in rows]
 
 
+@router.get(".geojson")
+def list_flows_geojson(
+    vector: list[str] | None = Query(default=None),
+    covering_year: int | None = None,
+    limit: int = 1000,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Return flows as a GeoJSON FeatureCollection of LineStrings.
+
+    Geometry is a straight line between origin and destination centroids
+    (computed by PostGIS). Curves are added client-side as a styling choice
+    so server payload stays small.
+    """
+    where = []
+    params: dict[str, Any] = {"lim": min(limit, 5000)}
+    if vector:
+        where.append("f.vector::text = ANY(:vectors)")
+        params["vectors"] = vector
+    if covering_year is not None:
+        where.append(
+            "((f.date_from IS NULL OR EXTRACT(YEAR FROM f.date_from) <= :y) "
+            "AND (f.date_to IS NULL OR EXTRACT(YEAR FROM f.date_to) >= :y))"
+        )
+        params["y"] = covering_year
+
+    sql = f"""
+        SELECT
+            f.id, f.vector, f.transport_mode,
+            f.count, f.count_lower, f.count_upper, f.count_method,
+            f.origin_precision, f.destination_precision,
+            f.provisional, f.date_precision,
+            f.date_from, f.date_to,
+            tl.label AS temporal_label,
+            o.name AS origin_name, d.name AS destination_name,
+            ST_X(ST_Centroid(o.geom)) AS o_lon,
+            ST_Y(ST_Centroid(o.geom)) AS o_lat,
+            ST_X(ST_Centroid(d.geom)) AS d_lon,
+            ST_Y(ST_Centroid(d.geom)) AS d_lat,
+            (SELECT COUNT(*) FROM flow_sources fs WHERE fs.flow_id = f.id) AS source_count
+        FROM migration_flows f
+        JOIN territories o ON o.id = f.origin_territory_id
+        JOIN territories d ON d.id = f.destination_territory_id
+        LEFT JOIN temporal_labels tl ON tl.id = f.temporal_label_id
+        WHERE o.geom IS NOT NULL AND d.geom IS NOT NULL
+              {('AND ' + ' AND '.join(where)) if where else ''}
+        ORDER BY f.id DESC
+        LIMIT :lim
+    """
+    rows = db.execute(text(sql), params).mappings().all()
+
+    features = []
+    for r in rows:
+        features.append({
+            "type": "Feature",
+            "id": r["id"],
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [[r["o_lon"], r["o_lat"]], [r["d_lon"], r["d_lat"]]],
+            },
+            "properties": {
+                "id": r["id"],
+                "vector": r["vector"],
+                "transport_mode": r["transport_mode"],
+                "count": r["count"],
+                "count_lower": r["count_lower"],
+                "count_upper": r["count_upper"],
+                "count_method": r["count_method"],
+                "origin_name": r["origin_name"],
+                "destination_name": r["destination_name"],
+                "temporal_label": r["temporal_label"],
+                "date_from": r["date_from"].isoformat() if r["date_from"] else None,
+                "date_to": r["date_to"].isoformat() if r["date_to"] else None,
+                "date_precision": r["date_precision"],
+                "provisional": r["provisional"],
+                "source_count": r["source_count"],
+            },
+        })
+    return {"type": "FeatureCollection", "features": features}
+
+
 @router.get("/{flow_id}", response_model=FlowOut)
 def get_flow(flow_id: int, db: Session = Depends(get_db)):
     sql = f"{_LIST_SQL} WHERE f.id = :i"

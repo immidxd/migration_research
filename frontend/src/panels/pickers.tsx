@@ -9,7 +9,8 @@ import {
 } from "../api/flows";
 
 
-type Option = { label: React.ReactNode; value: number };
+type Option = { label: React.ReactNode; value: number; raw: any };
+
 
 export const TerritoryPicker: React.FC<{
   value: number | null;
@@ -20,20 +21,9 @@ export const TerritoryPicker: React.FC<{
   const [opts, setOpts] = useState<Map<number, TerritorySearchRow>>(new Map());
   const [loading, setLoading] = useState(false);
 
-  // Resolve current value into a label by fetching it once
-  useEffect(() => {
-    if (value == null || opts.has(value)) return;
-    (async () => {
-      const all = await searchTerritories("", kinds);
-      setOpts((m) => {
-        const next = new Map(m);
-        for (const r of all) next.set(r.id, r);
-        return next;
-      });
-    })();
-  }, [value, kinds, opts]);
+  const kindsKey = kinds?.join(",") ?? "";
 
-  const search = async (q: string) => {
+  const fetch = async (q: string) => {
     setLoading(true);
     try {
       const rows = await searchTerritories(q, kinds);
@@ -47,15 +37,27 @@ export const TerritoryPicker: React.FC<{
     }
   };
 
+  // Preload initial list on mount / kind change so the dropdown isn't
+  // empty when the user clicks before typing.
+  useEffect(() => {
+    fetch("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kindsKey]);
+
   const options: Option[] = useMemo(
     () =>
       Array.from(opts.values()).map((t) => ({
         value: t.id,
+        raw: t,
         label: (
           <span>
-            <span className="opacity-50 text-[10px] uppercase mr-1">{t.kind}</span>
+            <span style={{ opacity: 0.5, textTransform: "uppercase", fontSize: 10, marginRight: 6 }}>
+              {t.kind}
+            </span>
             {t.name_local ?? t.name}
-            {t.code && <span className="opacity-40 text-[10px] ml-1">· {t.code}</span>}
+            {t.name_local && t.name && t.name_local !== t.name && (
+              <span style={{ opacity: 0.4, fontSize: 11, marginLeft: 6 }}>· {t.name}</span>
+            )}
           </span>
         ),
       })),
@@ -67,13 +69,14 @@ export const TerritoryPicker: React.FC<{
       showSearch
       placeholder={placeholder}
       value={value ?? undefined}
-      onSearch={search}
+      onSearch={fetch}
       onChange={(v) => onChange(v ?? null, v != null ? opts.get(v) ?? null : null)}
       filterOption={false}
-      notFoundContent={loading ? <Spin size="small" /> : null}
+      notFoundContent={loading ? <Spin size="small" /> : "нічого не знайдено"}
       options={options}
       style={{ width: "100%" }}
       allowClear
+      defaultActiveFirstOption={false}
     />
   );
 };
@@ -87,18 +90,7 @@ export const SourcePicker: React.FC<{
   const [opts, setOpts] = useState<Map<number, SourceRow>>(new Map());
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      const initial = await searchSources("");
-      setOpts((m) => {
-        const next = new Map(m);
-        for (const r of initial) next.set(r.id, r);
-        return next;
-      });
-    })();
-  }, []);
-
-  const search = async (q: string) => {
+  const fetch = async (q: string) => {
     setLoading(true);
     try {
       const rows = await searchSources(q);
@@ -112,14 +104,16 @@ export const SourcePicker: React.FC<{
     }
   };
 
-  const options: Option[] = useMemo(
+  useEffect(() => { fetch(""); }, []);
+
+  const options = useMemo(
     () =>
       Array.from(opts.values()).map((s) => ({
         value: s.id,
         label: (
           <span>
             {s.short_title}
-            {s.year && <span className="opacity-40 ml-1 text-[10px]">· {s.year}</span>}
+            {s.year && <span style={{ opacity: 0.4, marginLeft: 4, fontSize: 11 }}>· {s.year}</span>}
           </span>
         ),
       })),
@@ -133,17 +127,18 @@ export const SourcePicker: React.FC<{
         showSearch
         placeholder="оберіть джерела…"
         value={value}
-        onSearch={search}
+        onSearch={fetch}
         onChange={(v) => onChange(v as number[])}
         filterOption={false}
-        notFoundContent={loading ? <Spin size="small" /> : null}
+        notFoundContent={loading ? <Spin size="small" /> : "нічого не знайдено"}
         options={options}
         style={{ width: "100%" }}
       />
       <button
         type="button"
         onClick={onAddNew}
-        className="self-start text-xs text-accent hover:underline"
+        className="self-start text-xs hover:underline"
+        style={{ color: "var(--accent)" }}
       >
         + нове джерело
       </button>

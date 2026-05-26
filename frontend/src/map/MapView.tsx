@@ -1,8 +1,37 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import maplibregl, { Map, MapGeoJSONFeature } from "maplibre-gl";
 
+import { useFlowsGeoJSON } from "../api/flows";
 import { useTerritoryLayer } from "../api/territories";
 import { scopeRange, useFilters } from "../store";
+
+
+/** Convert a 2-point LineString into a curved arc (quadratic bezier).
+ *  Lifts the midpoint perpendicular to the chord, with curvature
+ *  proportional to the chord length so short hops stay subtle.
+ */
+function curveLine(coords: [number, number][], steps = 32): [number, number][] {
+  if (coords.length !== 2) return coords;
+  const [a, b] = coords;
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const len = Math.hypot(dx, dy);
+  // Perpendicular unit vector
+  const nx = -dy / (len || 1), ny = dx / (len || 1);
+  // Curvature: 18% of chord length, capped
+  const lift = Math.min(len * 0.18, 12);
+  const mx = (a[0] + b[0]) / 2 + nx * lift;
+  const my = (a[1] + b[1]) / 2 + ny * lift;
+  const out: [number, number][] = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const u = 1 - t;
+    out.push([
+      u * u * a[0] + 2 * u * t * mx + t * t * b[0],
+      u * u * a[1] + 2 * u * t * my + t * t * b[1],
+    ]);
+  }
+  return out;
+}
 
 
 // CARTO basemaps — CORS-enabled, no API key, work in pywebview's WKWebView.
@@ -65,6 +94,9 @@ const MapView: React.FC = () => {
   const countriesQ = useTerritoryLayer(["country"]);
   const regionsQ = useTerritoryLayer(["region"]);
   const portsQ = useTerritoryLayer(["port", "border_crossing"]);
+  const flowsQ = useFlowsGeoJSON({
+    covering_year: scope.mode === "year" ? scope.year : undefined,
+  });
 
   // --- init map once ---
   useEffect(() => {
@@ -73,8 +105,11 @@ const MapView: React.FC = () => {
     const map = new maplibregl.Map({
       container: ref.current,
       style: makeBaseStyle(themeMode),
-      center: [25.0, 50.0],
-      zoom: 4,
+      // Fit to Ukraine + neighbours so the umbrella regions are immediately
+      // visible without scrolling. Roughly: from Galicia (21°E) to the Don
+      // (40°E) and from the Baltic (52°N) down to the Crimean coast (44°N).
+      bounds: [[20, 43], [42, 53]],
+      fitBoundsOptions: { padding: 24 },
       attributionControl: false,
     });
     mapRef.current = map;
@@ -86,7 +121,7 @@ const MapView: React.FC = () => {
       loadedRef.current = true;
       const C = themeColors(themeMode);
 
-      for (const id of ["countries", "regions", "ports"] as const) {
+      for (const id of ["countries", "regions", "ports", "flows"] as const) {
         map.addSource(id, { type: "geojson", data: EMPTY_FC });
       }
 
@@ -227,6 +262,91 @@ const MapView: React.FC = () => {
         },
       });
 
+      // Flow arcs — coloured by vector, width by count_method
+      map.addLayer({
+        id: "flows-glow",
+        type: "line",
+        source: "flows",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": [
+            "match", ["get", "vector"],
+            "transatlantic", "#ff6b6b",
+            "european", "#4cc9f0",
+            "intra_imperial_east", "#9b5de5",
+            "intra_imperial_other", "#f9c74f",
+            "internal", "#90be6d",
+            "#cccccc",
+          ],
+          "line-width": [
+            "interpolate", ["linear"], ["zoom"],
+            3, 6, 8, 14,
+          ],
+          "line-blur": 4,
+          "line-opacity": 0.35,
+        },
+      });
+      map.addLayer({
+        id: "flows-line",
+        type: "line",
+        source: "flows",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": [
+            "match", ["get", "vector"],
+            "transatlantic", "#ff8c8c",
+            "european", "#7dd6f6",
+            "intra_imperial_east", "#b585e8",
+            "intra_imperial_other", "#fcd968",
+            "internal", "#a7d685",
+            "#dddddd",
+          ],
+          "line-width": [
+            "case",
+            ["==", ["get", "provisional"], true], 1.5,
+            ["interpolate", ["linear"], ["coalesce", ["get", "count"], 100],
+              0, 1.2, 100, 1.8, 1000, 2.8, 10000, 4.2, 100000, 6,
+            ],
+          ],
+          "line-opacity": [
+            "case",
+            ["==", ["get", "provisional"], true], 0.5,
+            0.9,
+          ],
+          "line-dasharray": [
+            "case",
+            ["==", ["get", "provisional"], true], ["literal", [2, 2]],
+            ["literal", [1, 0]],
+          ],
+        },
+      });
+      map.addLayer({
+        id: "flows-label",
+        type: "symbol",
+        source: "flows",
+        minzoom: 4,
+        layout: {
+          "symbol-placement": "line-center",
+          "text-field": [
+            "case",
+            ["has", "count"],
+              ["concat", ["to-string", ["get", "count"]], " осіб"],
+            ["has", "count_lower"],
+              ["concat",
+                ["to-string", ["get", "count_lower"]], "–",
+                ["to-string", ["get", "count_upper"]], " осіб"],
+            "",
+          ],
+          "text-size": 10,
+          "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+        },
+        paint: {
+          "text-color": C.text,
+          "text-halo-color": C.halo,
+          "text-halo-width": 1.4,
+        },
+      });
+
       // Selection halo for any layer
       const haloColor = themeMode === "dark" ? "#ffffff" : "#111111";
       map.addLayer({
@@ -251,9 +371,11 @@ const MapView: React.FC = () => {
         filter: ["==", ["get", "id"], -1],
       });
 
-      for (const lyr of ["regions-fill", "ports-circle", "countries-fill"]) {
+      for (const lyr of ["regions-fill", "ports-circle", "countries-fill", "flows-line"]) {
         map.on("mouseenter", lyr, () => { map.getCanvas().style.cursor = "pointer"; });
         map.on("mouseleave", lyr, () => { map.getCanvas().style.cursor = ""; });
+      }
+      for (const lyr of ["regions-fill", "ports-circle", "countries-fill"]) {
         map.on("click", lyr, (e) => {
           const f = e.features?.[0] as MapGeoJSONFeature | undefined;
           if (f?.properties?.id != null) selectTerritory(Number(f.properties.id));
@@ -314,7 +436,28 @@ const MapView: React.FC = () => {
       ?.setData(filterByEmpire(regionsQ.data));
     (map.getSource("ports") as maplibregl.GeoJSONSource | undefined)
       ?.setData(filterByEmpire(portsQ.data));
+
   }, [countriesQ.data, regionsQ.data, portsQ.data, empires, scope]);
+
+  // Recompute flow data when vector toggles change (without refetching)
+  const vectorsState = useFilters((s) => s.vectors);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loadedRef.current || !flowsQ.data) return;
+    const flowFc = {
+      type: "FeatureCollection" as const,
+      features: flowsQ.data.features
+        .filter((f) => vectorsState.has(f.properties.vector as any))
+        .map((f) => ({
+          ...f,
+          geometry: {
+            type: "LineString" as const,
+            coordinates: curveLine(f.geometry.coordinates as [number, number][]),
+          },
+        })),
+    };
+    (map.getSource("flows") as maplibregl.GeoJSONSource | undefined)?.setData(flowFc);
+  }, [vectorsState, flowsQ.data]);
 
   // --- visibility toggles ---
   useEffect(() => {
