@@ -55,19 +55,31 @@ export function scopeDescribe(s: TemporalScope): string {
   return s.label.label;
 }
 
+export type ThemeMode = "dark" | "light";
+
 interface FilterState {
   kinds: Set<TerritoryKind>;
   empires: Set<Empire>;
   vectors: Set<MigrationVector>;
   selectedTerritoryId: number | null;
   scope: TemporalScope;
+  theme: ThemeMode;
 
   toggleKind: (k: TerritoryKind) => void;
   toggleEmpire: (e: Empire) => void;
   toggleVector: (v: MigrationVector) => void;
   selectTerritory: (id: number | null) => void;
   setScope: (s: TemporalScope) => void;
+  setTheme: (t: ThemeMode) => void;
 }
+
+const initialTheme: ThemeMode = (() => {
+  try {
+    const saved = localStorage.getItem("migrations.theme");
+    if (saved === "dark" || saved === "light") return saved;
+  } catch {}
+  return "dark";
+})();
 
 const ALL_VECTORS: MigrationVector[] = [
   "transatlantic", "european", "intra_imperial_east",
@@ -80,6 +92,7 @@ export const useFilters = create<FilterState>((set) => ({
   vectors: new Set<MigrationVector>(ALL_VECTORS),
   selectedTerritoryId: null,
   scope: { mode: "none" },
+  theme: initialTheme,
 
   toggleKind: (k) => set((s) => {
     const next = new Set(s.kinds);
@@ -98,4 +111,14 @@ export const useFilters = create<FilterState>((set) => ({
   }),
   selectTerritory: (id) => set({ selectedTerritoryId: id }),
   setScope: (s) => set({ scope: s }),
+  setTheme: (t) => {
+    try { localStorage.setItem("migrations.theme", t); } catch {}
+    document.documentElement.setAttribute("data-theme", t);
+    set({ theme: t });
+  },
 }));
+
+// Apply initial theme attribute synchronously so first paint matches.
+if (typeof document !== "undefined") {
+  document.documentElement.setAttribute("data-theme", initialTheme);
+}

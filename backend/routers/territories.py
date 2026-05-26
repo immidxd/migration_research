@@ -97,6 +97,34 @@ def list_territories(
     return {"type": "FeatureCollection", "features": features}
 
 
+@router.get("/search")
+def search_territories(
+    q: str = "",
+    kind: list[str] | None = Query(default=None),
+    limit: int = 20,
+    db: Session = Depends(get_db),
+) -> list[dict[str, Any]]:
+    """Typeahead by name, name_local, or code. Case-insensitive."""
+    where = []
+    params: dict[str, Any] = {"pat": f"%{q}%", "q": q, "lim": min(limit, 100)}
+    if q:
+        where.append("(name ILIKE :pat OR name_local ILIKE :pat OR code ILIKE :pat)")
+    if kind:
+        where.append("kind::text = ANY(:kinds)")
+        params["kinds"] = kind
+    sql = f"""
+        SELECT id, kind, name, name_local, code, empire, is_umbrella_region
+        FROM territories
+        {"WHERE " + " AND ".join(where) if where else ""}
+        ORDER BY
+          CASE WHEN name ILIKE :pat THEN 0 ELSE 1 END,
+          kind, name
+        LIMIT :lim
+    """
+    rows = db.execute(text(sql), params).mappings().all()
+    return [dict(r) for r in rows]
+
+
 @router.get("/{territory_id}")
 def get_territory(territory_id: int, db: Session = Depends(get_db)) -> dict[str, Any]:
     sql = """

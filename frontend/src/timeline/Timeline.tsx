@@ -78,40 +78,70 @@ const Timeline: React.FC = () => {
 
   const reset = () => setScope({ mode: "none" });
 
+  const inputStyle: React.CSSProperties = {
+    background: "var(--bg-base)",
+    color: "var(--text-base)",
+    border: "1px solid var(--border)",
+    borderRadius: 4,
+    padding: "4px 8px",
+    width: 96,
+    fontSize: 14,
+    outline: "none",
+  };
+
   return (
-    <div className="h-full flex items-stretch text-white/85">
+    <div className="h-full flex items-stretch" style={{ color: "var(--text-base)" }}>
       {/* Mode selector + scope readout */}
-      <div className="flex flex-col justify-between px-4 py-2 border-r border-black/30 w-[200px] shrink-0">
+      <div
+        className="flex flex-col justify-between px-4 py-2 w-[200px] shrink-0"
+        style={{ borderRight: "1px solid var(--border)" }}
+      >
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-white/40 mb-1">Час</div>
+          <div
+            className="text-[10px] uppercase tracking-wider mb-1"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Час
+          </div>
           <div className="flex gap-1 mb-2">
             {(["year", "range", "label"] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
-                className={`px-2 py-1 text-xs rounded ${
-                  mode === m
-                    ? "bg-accent/30 text-white"
-                    : "bg-white/5 text-white/60 hover:bg-white/10"
-                }`}
+                className="px-2 py-1 text-xs rounded"
+                style={{
+                  background: mode === m ? "var(--accent-soft)" : "transparent",
+                  color: mode === m ? "var(--text-strong)" : "var(--text-muted)",
+                  border: "1px solid var(--border-soft)",
+                }}
               >
                 {m === "year" ? "рік" : m === "range" ? "діапазон" : "мітка"}
               </button>
             ))}
           </div>
-          <div className="text-[10px] text-white/40">обрано:</div>
+          <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>обрано:</div>
           <div className="text-sm font-medium leading-tight">{scopeDescribe(scope)}</div>
         </div>
         <div className="flex gap-2">
           <button
             onClick={apply}
-            className="flex-1 px-2 py-1 text-xs bg-accent/30 hover:bg-accent/50 rounded"
+            className="flex-1 px-2 py-1 text-xs rounded"
+            style={{
+              background: "var(--accent-soft)",
+              color: "var(--text-strong)",
+              border: "1px solid var(--accent)",
+            }}
           >
             застосувати
           </button>
           <button
             onClick={reset}
-            className="px-2 py-1 text-xs bg-white/5 hover:bg-white/10 rounded"
+            className="px-2 py-1 text-xs rounded"
+            style={{
+              background: "transparent",
+              color: "var(--text-muted)",
+              border: "1px solid var(--border-soft)",
+            }}
           >
             скинути
           </button>
@@ -128,7 +158,7 @@ const Timeline: React.FC = () => {
               max={YEAR_MAX}
               value={year}
               onChange={(e) => setYear(Math.max(YEAR_MIN, Math.min(YEAR_MAX, Number(e.target.value))))}
-              className="bg-black/30 border border-white/15 rounded px-2 py-1 w-24 text-base text-white focus:border-accent outline-none"
+              style={inputStyle}
             />
             <div className="flex-1 px-2">
               <Slider
@@ -149,7 +179,7 @@ const Timeline: React.FC = () => {
             <input
               type="number" min={YEAR_MIN} max={range[1]} value={range[0]}
               onChange={(e) => setRange([Number(e.target.value), range[1]])}
-              className="bg-black/30 border border-white/15 rounded px-2 py-1 w-24 text-base text-white focus:border-accent outline-none"
+              style={inputStyle}
             />
             <div className="flex-1 px-2">
               <Slider
@@ -165,7 +195,7 @@ const Timeline: React.FC = () => {
             <input
               type="number" min={range[0]} max={YEAR_MAX} value={range[1]}
               onChange={(e) => setRange([range[0], Number(e.target.value)])}
-              className="bg-black/30 border border-white/15 rounded px-2 py-1 w-24 text-base text-white focus:border-accent outline-none"
+              style={inputStyle}
             />
           </div>
         )}

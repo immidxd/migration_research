@@ -7,9 +7,36 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.models import get_db
+from backend.models.sources import Source
+from backend.schemas.sources import SourceCreate, SourceOut
 
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
+
+
+@router.post("", response_model=SourceOut, status_code=201)
+def create_source(payload: SourceCreate, db: Session = Depends(get_db)) -> Source:
+    src = Source(**payload.model_dump())
+    db.add(src)
+    db.commit()
+    db.refresh(src)
+    return src
+
+
+@router.get("/search")
+def search_sources(q: str = "", limit: int = 20, db: Session = Depends(get_db)) -> list[dict[str, Any]]:
+    """Typeahead. Empty `q` returns the most recent N sources."""
+    sql = """
+        SELECT id, short_title, citation, kind, year
+        FROM sources
+        WHERE :q = '' OR short_title ILIKE :pat OR citation ILIKE :pat OR author ILIKE :pat
+        ORDER BY id DESC
+        LIMIT :lim
+    """
+    rows = db.execute(
+        text(sql), {"q": q, "pat": f"%{q}%", "lim": min(limit, 100)}
+    ).mappings().all()
+    return [dict(r) for r in rows]
 
 
 @router.get("")

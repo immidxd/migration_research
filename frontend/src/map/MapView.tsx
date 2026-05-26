@@ -5,30 +5,48 @@ import { useTerritoryLayer } from "../api/territories";
 import { scopeRange, useFilters } from "../store";
 
 
-// CARTO Dark Matter — CORS-enabled, no API key, looks great as a backdrop
-// for thematic overlays. Works in pywebview's WKWebView (unlike some
-// straight-OSM endpoints which 403 on certain user agents).
-const BASE_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-  sources: {
-    carto: {
-      type: "raster",
-      tiles: [
-        "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-        "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-        "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-        "https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-      ],
-      tileSize: 256,
-      attribution:
-        '© <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
+// CARTO basemaps — CORS-enabled, no API key, work in pywebview's WKWebView.
+// Two flavours: dark_all for our dark theme, positron for the light theme.
+function makeBaseStyle(mode: "dark" | "light"): maplibregl.StyleSpecification {
+  const slug = mode === "dark" ? "dark_all" : "positron";
+  return {
+    version: 8,
+    glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+    sources: {
+      carto: {
+        type: "raster",
+        tiles: [
+          `https://a.basemaps.cartocdn.com/${slug}/{z}/{x}/{y}@2x.png`,
+          `https://b.basemaps.cartocdn.com/${slug}/{z}/{x}/{y}@2x.png`,
+          `https://c.basemaps.cartocdn.com/${slug}/{z}/{x}/{y}@2x.png`,
+          `https://d.basemaps.cartocdn.com/${slug}/{z}/{x}/{y}@2x.png`,
+        ],
+        tileSize: 256,
+        attribution:
+          '© <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
+      },
     },
-  },
-  layers: [
-    { id: "carto", type: "raster", source: "carto" },
-  ],
-};
+    layers: [{ id: "carto", type: "raster", source: "carto" }],
+  };
+}
+
+function themeColors(mode: "dark" | "light") {
+  return mode === "dark"
+    ? {
+        text: "#f5e9d0",
+        halo: "rgba(14,17,24,0.85)",
+        countryFill: "#2b3346",
+        countryLine: "#586484",
+        portStroke: "#0e1118",
+      }
+    : {
+        text: "#2a2724",
+        halo: "rgba(255,255,255,0.92)",
+        countryFill: "#9c8c6a",
+        countryLine: "#604a2a",
+        portStroke: "#ffffff",
+      };
+}
 
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 
@@ -42,6 +60,7 @@ const MapView: React.FC = () => {
   const selectedId = useFilters((s) => s.selectedTerritoryId);
   const selectTerritory = useFilters((s) => s.selectTerritory);
   const scope = useFilters((s) => s.scope);
+  const themeMode = useFilters((s) => s.theme);
 
   const countriesQ = useTerritoryLayer(["country"]);
   const regionsQ = useTerritoryLayer(["region"]);
@@ -53,7 +72,7 @@ const MapView: React.FC = () => {
 
     const map = new maplibregl.Map({
       container: ref.current,
-      style: BASE_STYLE,
+      style: makeBaseStyle(themeMode),
       center: [25.0, 50.0],
       zoom: 4,
       attributionControl: false,
@@ -65,6 +84,7 @@ const MapView: React.FC = () => {
 
     map.on("load", () => {
       loadedRef.current = true;
+      const C = themeColors(themeMode);
 
       for (const id of ["countries", "regions", "ports"] as const) {
         map.addSource(id, { type: "geojson", data: EMPTY_FC });
@@ -76,7 +96,7 @@ const MapView: React.FC = () => {
         type: "fill",
         source: "countries",
         paint: {
-          "fill-color": "#2b3346",
+          "fill-color": C.countryFill,
           "fill-opacity": 0.18,
         },
       });
@@ -85,7 +105,7 @@ const MapView: React.FC = () => {
         type: "line",
         source: "countries",
         paint: {
-          "line-color": "#586484",
+          "line-color": C.countryLine,
           "line-width": 0.6,
           "line-opacity": 0.7,
         },
@@ -107,7 +127,27 @@ const MapView: React.FC = () => {
           "fill-opacity": [
             "case",
             ["==", ["get", "in_scope"], false], 0.08,
-            0.55,
+            0.45,
+          ],
+        },
+      });
+      // Crosshatch-ish double outline: a wider soft outer + crisp inner line
+      // makes regions read even before selection, on both basemaps.
+      map.addLayer({
+        id: "regions-outline-soft",
+        type: "line",
+        source: "regions",
+        paint: {
+          "line-color": [
+            "match", ["get", "empire"],
+            "russian_empire", "#ff8a4c",
+            "austro_hungarian", "#3aa3a3",
+            "#caa45e",
+          ],
+          "line-width": 4,
+          "line-blur": 2,
+          "line-opacity": [
+            "case", ["==", ["get", "in_scope"], false], 0.15, 0.7,
           ],
         },
       });
@@ -117,17 +157,14 @@ const MapView: React.FC = () => {
         source: "regions",
         paint: {
           "line-color": [
-            "match",
-            ["get", "empire"],
+            "match", ["get", "empire"],
             "russian_empire", "#ffcf99",
             "austro_hungarian", "#b3ecec",
             "#e9d8a6",
           ],
-          "line-width": 2,
+          "line-width": 2.2,
           "line-opacity": [
-            "case",
-            ["==", ["get", "in_scope"], false], 0.15,
-            1,
+            "case", ["==", ["get", "in_scope"], false], 0.2, 1,
           ],
         },
       });
@@ -138,15 +175,15 @@ const MapView: React.FC = () => {
         layout: {
           "text-field": ["coalesce", ["get", "name_local"], ["get", "name"]],
           "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
-          "text-size": 12,
+          "text-size": 13,
           "text-anchor": "center",
           "text-allow-overlap": false,
           "text-padding": 4,
         },
         paint: {
-          "text-color": "#f5e9d0",
-          "text-halo-color": "rgba(14,17,24,0.85)",
-          "text-halo-width": 1.5,
+          "text-color": C.text,
+          "text-halo-color": C.halo,
+          "text-halo-width": 1.8,
         },
       });
 
@@ -165,7 +202,7 @@ const MapView: React.FC = () => {
             ["==", ["get", "kind"], "port"], "#ffd166",
             "#c084fc",
           ],
-          "circle-stroke-color": "#0e1118",
+          "circle-stroke-color": C.portStroke,
           "circle-stroke-width": 2,
           "circle-opacity": 1,
         },
@@ -184,18 +221,19 @@ const MapView: React.FC = () => {
           "text-optional": true,
         },
         paint: {
-          "text-color": "#f5e9d0",
-          "text-halo-color": "rgba(14,17,24,0.9)",
+          "text-color": C.text,
+          "text-halo-color": C.halo,
           "text-halo-width": 1.4,
         },
       });
 
       // Selection halo for any layer
+      const haloColor = themeMode === "dark" ? "#ffffff" : "#111111";
       map.addLayer({
         id: "selection-region",
         type: "line",
         source: "regions",
-        paint: { "line-color": "#ffffff", "line-width": 3 },
+        paint: { "line-color": haloColor, "line-width": 3 },
         filter: ["==", ["get", "id"], -1],
       });
       map.addLayer({
@@ -204,8 +242,10 @@ const MapView: React.FC = () => {
         source: "ports",
         paint: {
           "circle-radius": 14,
-          "circle-color": "rgba(255,255,255,0.1)",
-          "circle-stroke-color": "#ffffff",
+          "circle-color": themeMode === "dark"
+            ? "rgba(255,255,255,0.10)"
+            : "rgba(0,0,0,0.10)",
+          "circle-stroke-color": haloColor,
           "circle-stroke-width": 2,
         },
         filter: ["==", ["get", "id"], -1],
@@ -234,8 +274,10 @@ const MapView: React.FC = () => {
       mapRef.current = null;
       loadedRef.current = false;
     };
+    // Re-init when the theme changes so the basemap, label colors, and
+    // selection halos all swap together. (Avoids per-layer paint updates.)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [themeMode]);
 
   // --- push data into sources whenever queries land ---
   useEffect(() => {
@@ -330,11 +372,25 @@ const MapView: React.FC = () => {
     <>
       <div ref={ref} style={{ position: "absolute", inset: 0 }} />
       {loading && (
-        <div className="absolute top-3 left-3 bg-panel/90 text-white/70 text-xs px-3 py-1.5 rounded-md border border-black/40">
+        <div
+          className="absolute top-3 left-3 text-xs px-3 py-1.5 rounded-md"
+          style={{
+            background: "var(--bg-panel-soft)",
+            color: "var(--text-muted)",
+            border: "1px solid var(--border)",
+          }}
+        >
           завантаження шарів…
         </div>
       )}
-      <div className="absolute bottom-3 left-3 bg-panel/85 text-white/60 text-[10px] px-2 py-1 rounded border border-black/40">
+      <div
+        className="absolute bottom-3 left-3 text-[10px] px-2 py-1 rounded"
+        style={{
+          background: "var(--bg-panel-soft)",
+          color: "var(--text-muted)",
+          border: "1px solid var(--border)",
+        }}
+      >
         країни: {countriesQ.data?.features.length ?? 0} ·
         регіони: {regionsQ.data?.features.length ?? 0} ·
         точки: {portsQ.data?.features.length ?? 0}

@@ -1,12 +1,32 @@
 import React from "react";
 
 import { useTerritoryList } from "../api/territories";
+import { FlowsList } from "../panels/FlowsList";
 import {
   Empire,
   MigrationVector,
   TerritoryKind,
   useFilters,
 } from "../store";
+
+const ThemeToggle: React.FC = () => {
+  const theme = useFilters((s) => s.theme);
+  const setTheme = useFilters((s) => s.setTheme);
+  return (
+    <button
+      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      title={theme === "dark" ? "Перемкнути на світлу тему" : "Перемкнути на темну"}
+      className="rounded-md px-2 py-1 text-sm transition"
+      style={{
+        background: "var(--bg-panel)",
+        color: "var(--text-base)",
+        border: "1px solid var(--border-soft)",
+      }}
+    >
+      {theme === "dark" ? "☀︎" : "☾"}
+    </button>
+  );
+};
 
 const KIND_OPTIONS: { value: TerritoryKind; label: string }[] = [
   { value: "country", label: "Країни" },
@@ -33,8 +53,13 @@ const VECTOR_OPTIONS: { value: MigrationVector; label: string; hint: string }[] 
 ];
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <div className="px-4 py-3 border-b border-black/30">
-    <div className="text-xs uppercase tracking-wider text-white/50 mb-2">{title}</div>
+  <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border-soft)" }}>
+    <div
+      className="text-xs uppercase tracking-wider mb-2"
+      style={{ color: "var(--text-muted)" }}
+    >
+      {title}
+    </div>
     {children}
   </div>
 );
@@ -42,16 +67,20 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
 const Check: React.FC<{ checked: boolean; onChange: () => void; label: string; hint?: string }> = (
   { checked, onChange, label, hint },
 ) => (
-  <label className="flex items-start gap-2 py-1 cursor-pointer select-none hover:text-white">
+  <label
+    className="flex items-start gap-2 py-1 cursor-pointer select-none"
+    style={{ color: "var(--text-base)" }}
+  >
     <input
       type="checkbox"
       checked={checked}
       onChange={onChange}
-      className="mt-1 accent-accent"
+      className="mt-1"
+      style={{ accentColor: "var(--accent)" }}
     />
     <span className="text-sm leading-tight">
       <span>{label}</span>
-      {hint && <div className="text-xs text-white/40">{hint}</div>}
+      {hint && <div className="text-xs" style={{ color: "var(--text-faint)" }}>{hint}</div>}
     </span>
   </label>
 );
@@ -67,10 +96,18 @@ const FilterPanel: React.FC = () => {
   const portsQ = useTerritoryList(["port", "border_crossing"]);
 
   return (
-    <div className="text-white/85">
-      <div className="px-4 py-4 border-b border-black/40">
-        <div className="text-lg font-semibold">Migrations</div>
-        <div className="text-xs text-white/50">Research workspace</div>
+    <div style={{ color: "var(--text-base)" }}>
+      <div
+        className="px-4 py-4 flex items-start justify-between gap-2"
+        style={{ borderBottom: "1px solid var(--border)" }}
+      >
+        <div>
+          <div className="text-lg font-semibold">Migrations</div>
+          <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Research workspace
+          </div>
+        </div>
+        <ThemeToggle />
       </div>
 
       <Section title="Вектори">
@@ -83,7 +120,7 @@ const FilterPanel: React.FC = () => {
             hint={v.hint}
           />
         ))}
-        <div className="text-[10px] text-white/30 mt-1">
+        <div className="text-[10px] mt-1" style={{ color: "var(--text-faint)" }}>
           Поки немає завантажених потоків — тумблери впливатимуть на флоу-шар, коли він з'явиться.
         </div>
       </Section>
@@ -110,14 +147,25 @@ const FilterPanel: React.FC = () => {
         ))}
       </Section>
 
+      <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border-soft)" }}>
+        <div
+          className="text-xs uppercase tracking-wider mb-2"
+          style={{ color: "var(--text-muted)" }}
+        >
+          Введені потоки
+        </div>
+        <FlowsList />
+      </div>
+
       <Section title={`Регіони (${regionsQ.data?.count ?? 0})`}>
         {regionsQ.data?.items.map((t) => (
           <button
             key={t.id}
             onClick={() => selectTerritory(t.id)}
-            className={`block w-full text-left py-1 text-sm hover:text-white ${
-              selectedTerritoryId === t.id ? "text-accent" : "text-white/70"
-            }`}
+            className="block w-full text-left py-1 text-sm"
+            style={{
+              color: selectedTerritoryId === t.id ? "var(--accent)" : "var(--text-base)",
+            }}
             title={t.code ?? undefined}
           >
             {t.name_local ?? t.name}
@@ -130,9 +178,10 @@ const FilterPanel: React.FC = () => {
           <button
             key={t.id}
             onClick={() => selectTerritory(t.id)}
-            className={`block w-full text-left py-1 text-sm hover:text-white ${
-              selectedTerritoryId === t.id ? "text-accent" : "text-white/70"
-            }`}
+            className="block w-full text-left py-1 text-sm"
+            style={{
+              color: selectedTerritoryId === t.id ? "var(--accent)" : "var(--text-base)",
+            }}
             title={t.code ?? undefined}
           >
             {t.name}
