@@ -28,7 +28,14 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
-from .enums import CountMethod, DatePrecision, MigrationVector, PrecisionLevel, TransportMode
+from .enums import (
+    CountMethod,
+    DatePrecision,
+    MigrationVector,
+    PrecisionLevel,
+    TransportMode,
+    enum_values,
+)
 
 
 class MigrationFlow(Base):
@@ -56,7 +63,7 @@ class MigrationFlow(Base):
     date_from: Mapped[date | None] = mapped_column(Date)
     date_to: Mapped[date | None] = mapped_column(Date)
     date_precision: Mapped[DatePrecision] = mapped_column(
-        Enum(DatePrecision, name="date_precision"),
+        Enum(DatePrecision, name="date_precision", values_callable=enum_values),
         nullable=False,
         server_default=DatePrecision.UNKNOWN.value,
     )
@@ -67,27 +74,30 @@ class MigrationFlow(Base):
     count_lower: Mapped[int | None] = mapped_column(Integer)
     count_upper: Mapped[int | None] = mapped_column(Integer)
     count_method: Mapped[CountMethod] = mapped_column(
-        Enum(CountMethod, name="count_method"),
+        Enum(CountMethod, name="count_method", values_callable=enum_values),
         nullable=False,
         server_default=CountMethod.UNKNOWN.value,
     )
 
     vector: Mapped[MigrationVector] = mapped_column(
-        Enum(MigrationVector, name="migration_vector"), nullable=False, index=True
+        Enum(MigrationVector, name="migration_vector", values_callable=enum_values),
+        nullable=False,
+        index=True,
     )
     transport_mode: Mapped[TransportMode] = mapped_column(
-        Enum(TransportMode, name="transport_mode"),
+        Enum(TransportMode, name="transport_mode", values_callable=enum_values),
         nullable=False,
         server_default=TransportMode.UNKNOWN.value,
     )
 
     # Precision of the ORIGIN — drives map rendering (point vs polygon).
     origin_precision: Mapped[PrecisionLevel] = mapped_column(
-        Enum(PrecisionLevel, name="precision_level"), nullable=False
+        Enum(PrecisionLevel, name="precision_level", values_callable=enum_values),
+        nullable=False,
     )
     # Precision of the DESTINATION (often coarser than origin in sources).
     destination_precision: Mapped[PrecisionLevel] = mapped_column(
-        Enum(PrecisionLevel, name="precision_level"),
+        Enum(PrecisionLevel, name="precision_level", values_callable=enum_values),
         nullable=False,
         server_default=PrecisionLevel.COUNTRY.value,
     )
@@ -131,25 +141,28 @@ class MigrationEvent(Base):
 
     event_date: Mapped[date | None] = mapped_column(Date, index=True)
     date_precision: Mapped[DatePrecision] = mapped_column(
-        Enum(DatePrecision, name="date_precision"),
+        Enum(DatePrecision, name="date_precision", values_callable=enum_values),
         nullable=False,
         server_default=DatePrecision.UNKNOWN.value,
     )
 
     people_count: Mapped[int | None] = mapped_column(Integer)
     vector: Mapped[MigrationVector] = mapped_column(
-        Enum(MigrationVector, name="migration_vector"), nullable=False, index=True
+        Enum(MigrationVector, name="migration_vector", values_callable=enum_values),
+        nullable=False,
+        index=True,
     )
     transport_mode: Mapped[TransportMode] = mapped_column(
-        Enum(TransportMode, name="transport_mode"),
+        Enum(TransportMode, name="transport_mode", values_callable=enum_values),
         nullable=False,
         server_default=TransportMode.UNKNOWN.value,
     )
     origin_precision: Mapped[PrecisionLevel] = mapped_column(
-        Enum(PrecisionLevel, name="precision_level"), nullable=False
+        Enum(PrecisionLevel, name="precision_level", values_callable=enum_values),
+        nullable=False,
     )
     destination_precision: Mapped[PrecisionLevel] = mapped_column(
-        Enum(PrecisionLevel, name="precision_level"),
+        Enum(PrecisionLevel, name="precision_level", values_callable=enum_values),
         nullable=False,
         server_default=PrecisionLevel.COUNTRY.value,
     )

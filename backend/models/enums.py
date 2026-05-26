@@ -3,6 +3,12 @@ from __future__ import annotations
 import enum
 
 
+def enum_values(e: type[enum.Enum]) -> list[str]:
+    """For sa.Enum(..., values_callable=enum_values) — sends string values
+    (e.g. 'region') to Postgres instead of Python enum names ('REGION')."""
+    return [m.value for m in e]
+
+
 class PrecisionLevel(str, enum.Enum):
     """How geographically precise a record is.
 

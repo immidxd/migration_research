@@ -17,7 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
-from .enums import Empire, TerritoryKind
+from .enums import Empire, TerritoryKind, enum_values
 
 
 class Territory(Base):
@@ -32,16 +32,24 @@ class Territory(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     kind: Mapped[TerritoryKind] = mapped_column(
-        Enum(TerritoryKind, name="territory_kind"), nullable=False, index=True
+        Enum(TerritoryKind, name="territory_kind", values_callable=enum_values),
+        nullable=False,
+        index=True,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     name_local: Mapped[str | None] = mapped_column(String(255))  # native-language name
+    # External / canonical id: ISO_A2 / ISO_A3 for countries, custom slugs
+    # (e.g. "ua-region-pravoberezhzhia") for umbrella regions. Lets seeders
+    # be idempotent without relying on free-text name uniqueness.
+    code: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
     parent_id: Mapped[int | None] = mapped_column(
         ForeignKey("territories.id", ondelete="SET NULL"), index=True
     )
 
     empire: Mapped[Empire | None] = mapped_column(
-        Enum(Empire, name="empire"), nullable=True, index=True
+        Enum(Empire, name="empire", values_callable=enum_values),
+        nullable=True,
+        index=True,
     )
 
     valid_from: Mapped[date | None] = mapped_column(Date)

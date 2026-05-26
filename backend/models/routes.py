@@ -21,7 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
-from .enums import MigrationVector, TransportMode
+from .enums import MigrationVector, TransportMode, enum_values
 
 
 class Route(Base):
@@ -30,7 +30,9 @@ class Route(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     vector: Mapped[MigrationVector] = mapped_column(
-        Enum(MigrationVector, name="migration_vector"), nullable=False, index=True
+        Enum(MigrationVector, name="migration_vector", values_callable=enum_values),
+        nullable=False,
+        index=True,
     )
     notes: Mapped[str | None] = mapped_column(Text)
 
@@ -60,7 +62,8 @@ class RouteSegment(Base):
     )
 
     transport_mode: Mapped[TransportMode] = mapped_column(
-        Enum(TransportMode, name="transport_mode"), nullable=False
+        Enum(TransportMode, name="transport_mode", values_callable=enum_values),
+        nullable=False,
     )
     geom: Mapped[object | None] = mapped_column(
         Geometry(geometry_type="LINESTRING", srid=4326, spatial_index=True)
