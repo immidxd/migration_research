@@ -8,15 +8,39 @@ from __future__ import annotations
 
 import http.client
 import logging
+import shutil
 import sys
 import threading
 import time
+from pathlib import Path
 
 import uvicorn
 import webview
 from dotenv import load_dotenv
 
 from backend.app.settings import get_settings
+
+
+def clear_webkit_cache() -> None:
+    """Nuke pywebview's WKWebView cache so a fresh build of the React bundle
+    is always loaded — otherwise the old main.[hash].js can stick around and
+    UI changes appear to "not deploy"."""
+    candidates = [
+        Path.home() / "Library/WebKit/com.apple.WebKit.WebContent",
+        Path.home() / "Library/Caches/com.apple.WebKit.WebContent",
+        Path.home() / "Library/Caches/pywebview",
+        Path.home() / "Library/WebKit/Default",
+    ]
+    for p in candidates:
+        if p.exists():
+            try:
+                shutil.rmtree(p)
+                logger_clear = logging.getLogger("migrations.desktop")
+                logger_clear.info("cleared WebKit cache at %s", p)
+            except Exception as e:
+                logging.getLogger("migrations.desktop").warning(
+                    "could not clear %s: %s", p, e
+                )
 
 
 logging.basicConfig(
@@ -60,6 +84,7 @@ def wait_for_backend(host: str, port: int, retries: int = 40, delay: float = 0.5
 def main() -> None:
     load_dotenv()
     settings = get_settings()
+    clear_webkit_cache()
 
     backend_thread = threading.Thread(
         target=start_backend, args=(settings.host, settings.port), daemon=True

@@ -232,6 +232,38 @@ const MapView: React.FC = () => {
         map.addSource(id, { type: "geojson", data: EMPTY_FC });
       }
 
+      // === DIAGNOSTIC TEST POLYGON ===
+      // A hard-coded bright red rectangle over Ukraine. If THIS doesn't
+      // render, the maplibre/pywebview pipeline is broken — not my data
+      // flow. If it does render but real regions don't, the data flow is
+      // the problem. Remove once visibility is confirmed working.
+      map.addSource("__debug_test__", {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: [{
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "Polygon",
+              coordinates: [[[28, 48], [36, 48], [36, 52], [28, 52], [28, 48]]],
+            },
+          }],
+        },
+      });
+      map.addLayer({
+        id: "__debug_test_fill__",
+        type: "fill",
+        source: "__debug_test__",
+        paint: { "fill-color": "#ff0066", "fill-opacity": 0.5 },
+      });
+      map.addLayer({
+        id: "__debug_test_line__",
+        type: "line",
+        source: "__debug_test__",
+        paint: { "line-color": "#ff0066", "line-width": 3 },
+      });
+
       // Country contours — subtle, just for spatial context above the basemap
       map.addLayer({
         id: "countries-fill",
