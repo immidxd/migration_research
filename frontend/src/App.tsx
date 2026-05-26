@@ -1,6 +1,7 @@
 import React from "react";
 import FilterPanel from "./filters/FilterPanel";
 import MapView from "./map/MapView";
+import InspectorPanel from "./panels/InspectorPanel";
 import Timeline from "./timeline/Timeline";
 
 const App: React.FC = () => {
@@ -12,6 +13,7 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col">
         <div className="flex-1 relative">
           <MapView />
+          <InspectorPanel />
         </div>
         <div className="h-[140px] border-t border-black/40 bg-panel">
           <Timeline />
