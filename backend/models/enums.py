@@ -57,3 +57,23 @@ class TransportMode(str, enum.Enum):
     SEA = "sea"
     MIXED = "mixed"
     UNKNOWN = "unknown"
+
+
+class DatePrecision(str, enum.Enum):
+    """How precisely the date(s) on a fact are known."""
+
+    DAY = "day"
+    MONTH = "month"
+    YEAR = "year"
+    DECADE = "decade"
+    PERIOD = "period"  # only named-period precision (no raw dates)
+    UNKNOWN = "unknown"
+
+
+class CountMethod(str, enum.Enum):
+    """How the people-count on a flow/event was derived from the source."""
+
+    EXACT = "exact"          # source gives a single firm number
+    ESTIMATE = "estimate"    # source or scholar gives an estimate
+    RANGE = "range"          # only a lower/upper range is known
+    UNKNOWN = "unknown"      # no count, or unrecoverable
