@@ -11,7 +11,7 @@ const App: React.FC = () => {
         <FilterPanel />
       </aside>
       <main className="flex-1 flex flex-col">
-        <div className="flex-1 relative">
+        <div className="flex-1 relative" style={{ minHeight: 0 }}>
           <MapView />
           <InspectorPanel />
         </div>
