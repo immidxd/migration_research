@@ -225,6 +225,14 @@ const MapView: React.FC = () => {
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
 
     map.on("load", () => {
+      try {
+        runLoad(map);
+      } catch (err) {
+        console.error("[MapView] load handler crashed:", err);
+      }
+    });
+
+    function runLoad(map: Map) {
       loadedRef.current = true;
       const C = themeColors(themeMode);
 
@@ -285,26 +293,16 @@ const MapView: React.FC = () => {
         },
       });
 
-      // Umbrella regions — high-contrast tinted by empire so they pop
+      // Umbrella regions — SIMPLIFIED paint to debug rendering. Constants
+      // only, no data expressions. If polygons appear with this, the bug
+      // is in the original expressions; if they still don't, it's deeper.
       map.addLayer({
         id: "regions-fill",
         type: "fill",
         source: "regions",
         paint: {
-          "fill-color": [
-            "match",
-            ["get", "empire"],
-            "russian_empire", C.regionFillRu,
-            "austro_hungarian", C.regionFillAh,
-            C.regionFillOther,
-          ],
-          "fill-opacity": [
-            "case",
-            ["==", ["get", "in_scope"], false], 0.08,
-            // Highlight currently-selected region with a much stronger fill
-            ["==", ["get", "id"], selectedId ?? -1], 0.85,
-            0.55,
-          ],
+          "fill-color": "#e07b3a",
+          "fill-opacity": 0.55,
         },
       });
       map.addLayer({
@@ -312,20 +310,8 @@ const MapView: React.FC = () => {
         type: "line",
         source: "regions",
         paint: {
-          "line-color": [
-            "match", ["get", "empire"],
-            "russian_empire", C.regionLineRu,
-            "austro_hungarian", C.regionLineAh,
-            C.regionLineOther,
-          ],
-          "line-width": [
-            "case",
-            ["==", ["get", "id"], selectedId ?? -1], 4,
-            2.5,
-          ],
-          "line-opacity": [
-            "case", ["==", ["get", "in_scope"], false], 0.2, 1,
-          ],
+          "line-color": "#ffd9a8",
+          "line-width": 2.5,
         },
       });
       map.addLayer({
@@ -528,7 +514,8 @@ const MapView: React.FC = () => {
       // the ref. This sidesteps any React effect-scheduling race; the
       // sources are now never left empty after style load.
       pushAllData(map, stateRef.current, setRenderedCounts);
-    });
+      console.log("[MapView] load complete. layers:", map.getStyle().layers.map((l: any) => l.id));
+    }
 
     // Also resize whenever the window changes
     const onResize = () => map.resize();

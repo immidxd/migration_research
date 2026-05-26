@@ -104,7 +104,10 @@ def main() -> None:
         height=900,
         min_size=(1024, 700),
     )
-    webview.start()
+    # debug=True exposes WKWebView's developer tools: right-click in the
+    # window → "Inspect Element" → Console tab to see JS errors and the
+    # network panel. Essential while diagnosing rendering issues.
+    webview.start(debug=True)
 
 
 if __name__ == "__main__":
