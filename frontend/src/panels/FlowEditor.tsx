@@ -36,9 +36,37 @@ const PRECISION_OPTS = [
 ];
 
 
+import { TerritorySearchRow } from "../api/flows";
+
+const ConfirmChip: React.FC<{ row: TerritorySearchRow | null }> = ({ row }) => {
+  if (!row) return null;
+  return (
+    <div
+      className="mt-1 text-xs px-2 py-1 rounded"
+      style={{
+        background: "var(--accent-soft)",
+        border: "1px solid var(--accent)",
+        color: "var(--text-base)",
+        display: "inline-block",
+      }}
+    >
+      <span style={{ opacity: 0.6, textTransform: "uppercase", marginRight: 6 }}>
+        {row.kind}
+      </span>
+      {row.name_local ?? row.name}
+      {row.name_local && row.name && row.name_local !== row.name && (
+        <span style={{ opacity: 0.6, marginLeft: 6 }}>· {row.name}</span>
+      )}
+    </div>
+  );
+};
+
+
 export const FlowEditor: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const [origin, setOrigin] = useState<number | null>(null);
   const [destination, setDestination] = useState<number | null>(null);
+  const [originRow, setOriginRow] = useState<TerritorySearchRow | null>(null);
+  const [destRow, setDestRow] = useState<TerritorySearchRow | null>(null);
 
   // Time entry — three exclusive modes that all resolve to the canonical
   // date_from/date_to/date_precision triple on save.
@@ -67,6 +95,7 @@ export const FlowEditor: React.FC<{ open: boolean; onClose: () => void }> = ({ o
 
   const reset = () => {
     setOrigin(null); setDestination(null);
+    setOriginRow(null); setDestRow(null);
     setTimeMode("range"); setLabelId(null);
     setYear(null); setYearFrom(null); setYearTo(null);
     setVector("intra_imperial_east"); setTransport("rail");
@@ -175,26 +204,42 @@ export const FlowEditor: React.FC<{ open: boolean; onClose: () => void }> = ({ o
         }
       >
         <Form layout="vertical">
-          <Form.Item label="Походження" required>
+          <Form.Item
+            label="Походження"
+            required
+            help="Почніть писати назву і клацніть варіант зі списку (не Enter)"
+          >
             <TerritoryPicker
               value={origin}
-              onChange={(id) => setOrigin(id)}
+              onChange={(id, row) => { setOrigin(id); setOriginRow(row); }}
               placeholder="звідки…"
             />
+            <ConfirmChip row={originRow} />
           </Form.Item>
           <Form.Item label="Точність походження" required>
-            <Select value={originPrec} onChange={setOriginPrec} options={PRECISION_OPTS} />
+            <Select
+              value={originPrec}
+              onChange={setOriginPrec}
+              options={PRECISION_OPTS}
+              getPopupContainer={(t) => t.parentElement ?? document.body}
+            />
           </Form.Item>
 
           <Form.Item label="Пункт прибуття" required>
             <TerritoryPicker
               value={destination}
-              onChange={(id) => setDestination(id)}
+              onChange={(id, row) => { setDestination(id); setDestRow(row); }}
               placeholder="куди…"
             />
+            <ConfirmChip row={destRow} />
           </Form.Item>
           <Form.Item label="Точність прибуття">
-            <Select value={destPrec} onChange={setDestPrec} options={PRECISION_OPTS} />
+            <Select
+              value={destPrec}
+              onChange={setDestPrec}
+              options={PRECISION_OPTS}
+              getPopupContainer={(t) => t.parentElement ?? document.body}
+            />
           </Form.Item>
 
           <Form.Item
@@ -254,15 +299,26 @@ export const FlowEditor: React.FC<{ open: boolean; onClose: () => void }> = ({ o
                   label: `[${l.kind}] ${l.label} · ${l.year_from}–${l.year_to}`,
                 }))}
                 style={{ width: "100%" }}
+                getPopupContainer={(t) => t.parentElement ?? document.body}
               />
             )}
           </Form.Item>
 
           <Form.Item label="Вектор" required>
-            <Select value={vector} onChange={setVector} options={VECTOR_OPTS} />
+            <Select
+              value={vector}
+              onChange={setVector}
+              options={VECTOR_OPTS}
+              getPopupContainer={(t) => t.parentElement ?? document.body}
+            />
           </Form.Item>
           <Form.Item label="Транспорт">
-            <Select value={transport} onChange={setTransport} options={TRANSPORT_OPTS} />
+            <Select
+              value={transport}
+              onChange={setTransport}
+              options={TRANSPORT_OPTS}
+              getPopupContainer={(t) => t.parentElement ?? document.body}
+            />
           </Form.Item>
 
           <Form.Item label="Як відома кількість" required>

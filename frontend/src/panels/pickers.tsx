@@ -77,6 +77,9 @@ export const TerritoryPicker: React.FC<{
       style={{ width: "100%" }}
       allowClear
       defaultActiveFirstOption={false}
+      // Render the popup inside the Drawer's DOM, not at document.body —
+      // otherwise the Drawer's overlay can intercept clicks on dropdown items.
+      getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
     />
   );
 };
@@ -133,6 +136,7 @@ export const SourcePicker: React.FC<{
         notFoundContent={loading ? <Spin size="small" /> : "нічого не знайдено"}
         options={options}
         style={{ width: "100%" }}
+        getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
       />
       <button
         type="button"

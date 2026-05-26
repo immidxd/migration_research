@@ -162,27 +162,9 @@ const MapView: React.FC = () => {
           "fill-opacity": [
             "case",
             ["==", ["get", "in_scope"], false], 0.08,
-            0.45,
-          ],
-        },
-      });
-      // Crosshatch-ish double outline: a wider soft outer + crisp inner line
-      // makes regions read even before selection, on both basemaps.
-      map.addLayer({
-        id: "regions-outline-soft",
-        type: "line",
-        source: "regions",
-        paint: {
-          "line-color": [
-            "match", ["get", "empire"],
-            "russian_empire", "#ff8a4c",
-            "austro_hungarian", "#3aa3a3",
-            "#caa45e",
-          ],
-          "line-width": 4,
-          "line-blur": 2,
-          "line-opacity": [
-            "case", ["==", ["get", "in_scope"], false], 0.15, 0.7,
+            // Highlight currently-selected region with a much stronger fill
+            ["==", ["get", "id"], selectedId ?? -1], 0.85,
+            0.55,
           ],
         },
       });
@@ -193,11 +175,15 @@ const MapView: React.FC = () => {
         paint: {
           "line-color": [
             "match", ["get", "empire"],
-            "russian_empire", "#ffcf99",
-            "austro_hungarian", "#b3ecec",
-            "#e9d8a6",
+            "russian_empire", "#ffd9a8",
+            "austro_hungarian", "#c5f0f0",
+            "#f3e2a8",
           ],
-          "line-width": 2.2,
+          "line-width": [
+            "case",
+            ["==", ["get", "id"], selectedId ?? -1], 4,
+            2.5,
+          ],
           "line-opacity": [
             "case", ["==", ["get", "in_scope"], false], 0.2, 1,
           ],
@@ -349,11 +335,24 @@ const MapView: React.FC = () => {
 
       // Selection halo for any layer
       const haloColor = themeMode === "dark" ? "#ffffff" : "#111111";
+      // Wide outer glow for selected region
+      map.addLayer({
+        id: "selection-region-glow",
+        type: "line",
+        source: "regions",
+        paint: {
+          "line-color": haloColor,
+          "line-width": 12,
+          "line-blur": 6,
+          "line-opacity": 0.35,
+        },
+        filter: ["==", ["get", "id"], -1],
+      });
       map.addLayer({
         id: "selection-region",
         type: "line",
         source: "regions",
-        paint: { "line-color": haloColor, "line-width": 3 },
+        paint: { "line-color": haloColor, "line-width": 4 },
         filter: ["==", ["get", "id"], -1],
       });
       map.addLayer({
@@ -361,12 +360,12 @@ const MapView: React.FC = () => {
         type: "circle",
         source: "ports",
         paint: {
-          "circle-radius": 14,
+          "circle-radius": 16,
           "circle-color": themeMode === "dark"
-            ? "rgba(255,255,255,0.10)"
-            : "rgba(0,0,0,0.10)",
+            ? "rgba(255,255,255,0.15)"
+            : "rgba(0,0,0,0.15)",
           "circle-stroke-color": haloColor,
-          "circle-stroke-width": 2,
+          "circle-stroke-width": 3,
         },
         filter: ["==", ["get", "id"], -1],
       });
@@ -486,8 +485,26 @@ const MapView: React.FC = () => {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !loadedRef.current) return;
-    map.setFilter("selection-region", ["==", ["get", "id"], selectedId ?? -1]);
-    map.setFilter("selection-port", ["==", ["get", "id"], selectedId ?? -1]);
+    const selFilter = ["==", ["get", "id"], selectedId ?? -1] as any;
+    if (map.getLayer("selection-region-glow")) map.setFilter("selection-region-glow", selFilter);
+    if (map.getLayer("selection-region")) map.setFilter("selection-region", selFilter);
+    if (map.getLayer("selection-port")) map.setFilter("selection-port", selFilter);
+    // Also re-run the regions-fill paint so the selected polygon brightens
+    if (map.getLayer("regions-fill")) {
+      map.setPaintProperty("regions-fill", "fill-opacity", [
+        "case",
+        ["==", ["get", "in_scope"], false], 0.08,
+        ["==", ["get", "id"], selectedId ?? -1], 0.85,
+        0.55,
+      ] as any);
+    }
+    if (map.getLayer("regions-outline")) {
+      map.setPaintProperty("regions-outline", "line-width", [
+        "case",
+        ["==", ["get", "id"], selectedId ?? -1], 4,
+        2.5,
+      ] as any);
+    }
 
     if (selectedId == null) return;
     const findIn = (fc?: GeoJSON.FeatureCollection) =>
