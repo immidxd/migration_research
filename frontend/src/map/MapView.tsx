@@ -35,9 +35,12 @@ function curveLine(coords: [number, number][], steps = 32): [number, number][] {
 
 
 // CARTO basemaps — CORS-enabled, no API key, work in pywebview's WKWebView.
-// Two flavours: dark_all for our dark theme, positron for the light theme.
+// Two flavours: dark_all for our dark theme, light_all (Positron with labels)
+// for the light theme. Note: the Carto CDN slug for the light Positron raster
+// is `light_all`, NOT `positron` — using the wrong slug 404s every tile and
+// leaves the map blank.
 function makeBaseStyle(mode: "dark" | "light"): maplibregl.StyleSpecification {
-  const slug = mode === "dark" ? "dark_all" : "positron";
+  const slug = mode === "dark" ? "dark_all" : "light_all";
   return {
     version: 8,
     glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
@@ -67,13 +70,18 @@ function themeColors(mode: "dark" | "light") {
         countryFill: "#2b3346",
         countryLine: "#586484",
         portStroke: "#0e1118",
+        regionFillRu: "#e07b3a",  regionFillAh: "#5fc3c3",  regionFillOther: "#b8a169",
+        regionLineRu: "#ffd9a8",  regionLineAh: "#c5f0f0",  regionLineOther: "#f3e2a8",
       }
     : {
         text: "#2a2724",
         halo: "rgba(255,255,255,0.92)",
-        countryFill: "#9c8c6a",
-        countryLine: "#604a2a",
+        countryFill: "#d8cdb4",
+        countryLine: "#9c8a66",
         portStroke: "#ffffff",
+        // Saturated, slightly darker tones so colours pop on the cream basemap
+        regionFillRu: "#c75a1f",  regionFillAh: "#1f8a8a",  regionFillOther: "#9c7a2a",
+        regionLineRu: "#8a3a08",  regionLineAh: "#0e5a5a",  regionLineOther: "#5a4413",
       };
 }
 
@@ -155,9 +163,9 @@ const MapView: React.FC = () => {
           "fill-color": [
             "match",
             ["get", "empire"],
-            "russian_empire", "#e07b3a",
-            "austro_hungarian", "#5fc3c3",
-            "#b8a169",
+            "russian_empire", C.regionFillRu,
+            "austro_hungarian", C.regionFillAh,
+            C.regionFillOther,
           ],
           "fill-opacity": [
             "case",
@@ -175,9 +183,9 @@ const MapView: React.FC = () => {
         paint: {
           "line-color": [
             "match", ["get", "empire"],
-            "russian_empire", "#ffd9a8",
-            "austro_hungarian", "#c5f0f0",
-            "#f3e2a8",
+            "russian_empire", C.regionLineRu,
+            "austro_hungarian", C.regionLineAh,
+            C.regionLineOther,
           ],
           "line-width": [
             "case",
