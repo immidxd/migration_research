@@ -476,8 +476,40 @@ const MapView: React.FC = () => {
           "line-opacity": 0.95,
         },
       });
-      // flows-label intentionally omitted for now — re-add after confirming
-      // the basic line rendering works in WKWebView.
+      // Minimalist direction arrows along each flow arc. Unicode ▶ glyph
+      // placed along the line at ~180px intervals, rotated to follow the
+      // curve. Same colour as the flow line, with a halo for legibility.
+      map.addLayer({
+        id: "flows-arrow",
+        type: "symbol",
+        source: "flows",
+        layout: {
+          "symbol-placement": "line",
+          "symbol-spacing": 180,
+          "text-field": "▶",
+          "text-size": 13,
+          "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+          "text-keep-upright": false,
+          "text-rotation-alignment": "map",
+          "text-pitch-alignment": "map",
+          "text-allow-overlap": true,
+          "text-ignore-placement": true,
+        },
+        paint: {
+          "text-color": [
+            "match", ["get", "vector"],
+            "transatlantic", "#ff8c8c",
+            "european", "#7dd6f6",
+            "intra_imperial_east", "#c89bf6",
+            "intra_imperial_other", "#fcd968",
+            "internal", "#a7d685",
+            "#dddddd",
+          ],
+          "text-halo-color": C.halo,
+          "text-halo-width": 1.6,
+          "text-opacity": 0.9,
+        },
+      });
 
       // Selection halo for any layer
       const haloColor = themeMode === "dark" ? "#ffffff" : "#111111";
