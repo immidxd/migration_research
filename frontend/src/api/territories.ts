@@ -53,6 +53,22 @@ export function useTerritoryLayer(kinds: string[]) {
   });
 }
 
+// One-point-per-feature label source. Used by the map's symbol layer so
+// large multipart polygons (Сибір, Європейська Росія, …) get ONE label
+// instead of one per island.
+export function useTerritoryLabels(kinds: string[]) {
+  return useQuery<GeoJSON.FeatureCollection<GeoJSON.Point, TerritoryRow>>({
+    queryKey: ["territory-labels", kinds.sort().join(",")],
+    queryFn: async () => {
+      if (kinds.length === 0) return { type: "FeatureCollection", features: [] };
+      const { data } = await api.get(
+        `/territories.labels?${kindsToParams(kinds)}`
+      );
+      return data;
+    },
+  });
+}
+
 export function useTerritoryList(kinds: string[]) {
   return useQuery<{ items: TerritoryRow[]; count: number }>({
     queryKey: ["territories", "table", kinds.sort().join(",")],

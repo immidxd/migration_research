@@ -30,10 +30,12 @@ Thumbs.db
 
 # Data — raw downloads kept out of git, only fixtures committed
 data/basemaps/*
-data/territories/raw/
-!data/territories/.gitkeep
 !data/basemaps/.gitkeep
+!data/territories/.gitkeep
 !data/fixtures/.gitkeep
+# data/territories/raw/ IS tracked: it holds the academic source files
+# (RiStat 1897 GeoPackages) so the project is reproducible from a clean
+# clone. License CC0 with attribution.
 
 # Alembic local cache
 backend/migrations/__pycache__/

@@ -102,6 +102,53 @@ def list_territories(
     return {"type": "FeatureCollection", "features": features}
 
 
+@router.get(".labels")
+def territory_label_points(
+    kind: list[str] | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """One label point per territory feature (not per polygon part).
+
+    `ST_PointOnSurface` of the whole MultiPolygon gives a single point
+    inside the largest part — perfect for placing a single readable label
+    on a region that has many islands (e.g. Сибір with 15 sub-polygons,
+    each previously getting its own duplicate label)."""
+    where = []
+    params: dict[str, Any] = {}
+    if kind:
+        where.append("kind::text = ANY(:kinds)")
+        params["kinds"] = kind
+    sql = f"""
+        SELECT
+            id, kind, name, name_local, code, empire, is_umbrella_region,
+            ST_AsGeoJSON(ST_PointOnSurface(geom))::json AS pt
+        FROM territories
+        WHERE geom IS NOT NULL
+              {('AND ' + ' AND '.join(where)) if where else ''}
+    """
+    rows = db.execute(text(sql), params).mappings().all()
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "id": r["id"],
+                "geometry": r["pt"],
+                "properties": {
+                    "id": r["id"],
+                    "kind": r["kind"],
+                    "name": r["name"],
+                    "name_local": r["name_local"],
+                    "code": r["code"],
+                    "empire": r["empire"],
+                    "is_umbrella_region": r["is_umbrella_region"],
+                },
+            }
+            for r in rows if r["pt"] is not None
+        ],
+    }
+
+
 @router.get("/search")
 def search_territories(
     q: str = "",

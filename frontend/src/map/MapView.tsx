@@ -7,7 +7,7 @@ import maplibregl, { Map, MapGeoJSONFeature } from "maplibre-gl/dist/maplibre-gl
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { useFlowsGeoJSON } from "../api/flows";
-import { useTerritoryLayer } from "../api/territories";
+import { useTerritoryLabels, useTerritoryLayer } from "../api/territories";
 import { scopeRange, useFilters } from "../store";
 
 // Point maplibre at the worker file we copied into public/.
@@ -100,6 +100,7 @@ const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", feature
 type SourceSnapshot = {
   countries: GeoJSON.FeatureCollection | undefined;
   regions: GeoJSON.FeatureCollection | undefined;
+  regionsLabels: GeoJSON.FeatureCollection | undefined;
   ports: GeoJSON.FeatureCollection | undefined;
   flows: any;
   empires: Set<string>;
@@ -138,6 +139,7 @@ function pushAllData(
 
   const cFC = empiresFilter(s.countries);
   const rFC = empiresFilter(s.regions);
+  const rLFC = empiresFilter(s.regionsLabels);
   const pFC = empiresFilter(s.ports);
 
   const flowFC = s.flows
@@ -157,6 +159,7 @@ function pushAllData(
 
   (map.getSource("countries") as maplibregl.GeoJSONSource | undefined)?.setData(cFC);
   (map.getSource("regions") as maplibregl.GeoJSONSource | undefined)?.setData(rFC);
+  (map.getSource("regions-labels") as maplibregl.GeoJSONSource | undefined)?.setData(rLFC);
   (map.getSource("ports") as maplibregl.GeoJSONSource | undefined)?.setData(pFC);
   (map.getSource("flows") as maplibregl.GeoJSONSource | undefined)?.setData(flowFC);
 
@@ -183,6 +186,7 @@ const MapView: React.FC = () => {
 
   const countriesQ = useTerritoryLayer(["country"]);
   const regionsQ = useTerritoryLayer(["region"]);
+  const regionsLabelsQ = useTerritoryLabels(["region"]);
   const portsQ = useTerritoryLayer(["port", "border_crossing"]);
   const flowsQ = useFlowsGeoJSON({
     covering_year: scope.mode === "year" ? scope.year : undefined,
@@ -195,6 +199,7 @@ const MapView: React.FC = () => {
   const stateRef = useRef({
     countries: undefined as GeoJSON.FeatureCollection | undefined,
     regions: undefined as GeoJSON.FeatureCollection | undefined,
+    regionsLabels: undefined as GeoJSON.FeatureCollection | undefined,
     ports: undefined as GeoJSON.FeatureCollection | undefined,
     flows: undefined as any,
     empires,
@@ -204,6 +209,7 @@ const MapView: React.FC = () => {
   stateRef.current = {
     countries: countriesQ.data,
     regions: regionsQ.data,
+    regionsLabels: regionsLabelsQ.data,
     ports: portsQ.data,
     flows: flowsQ.data,
     empires,
@@ -245,7 +251,7 @@ const MapView: React.FC = () => {
         loadedRef.current = true;
       const C = themeColors(themeMode);
 
-      for (const id of ["countries", "regions", "ports", "flows"] as const) {
+      for (const id of ["countries", "regions", "regions-labels", "ports", "flows"] as const) {
         map.addSource(id, { type: "geojson", data: EMPTY_FC });
       }
 
@@ -342,21 +348,22 @@ const MapView: React.FC = () => {
           "line-dasharray": [4, 4],
         },
       });
+      // Labels come from a SEPARATE source whose features are Point geoms
+      // (one ST_PointOnSurface per Territory, computed server-side). This
+      // eliminates the maplibre default of placing one label per polygon
+      // PART in MultiPolygons — Сибір used to label every island.
       map.addLayer({
         id: "regions-label",
         type: "symbol",
-        source: "regions",
+        source: "regions-labels",
         layout: {
           "text-field": ["coalesce", ["get", "name_local"], ["get", "name"]],
           "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
-          // Smaller text for umbrella regions; bigger for actual regions.
           "text-size": [
             "case",
             ["==", ["get", "is_umbrella_region"], true], 11,
             13,
           ],
-          // ONE label per feature centroid (was getting duplicates).
-          "symbol-placement": "point",
           "text-allow-overlap": false,
           "text-ignore-placement": false,
           "text-padding": 8,
