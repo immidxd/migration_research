@@ -224,6 +224,13 @@ const MapView: React.FC = () => {
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
 
+    // Surface maplibre runtime errors with full detail (not just "fire" frames).
+    map.on("error", (e: any) => {
+      const err = e && e.error ? e.error : e;
+      // eslint-disable-next-line no-console
+      console.error("[MAP ERROR]", err && err.message, err && err.stack, e);
+    });
+
     const onLoad = () => {
       try {
         loadedRef.current = true;

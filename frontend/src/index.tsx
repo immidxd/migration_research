@@ -13,6 +13,17 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 60_000, refetchOnWindowFocus: false } },
 });
 
+// Surface ALL runtime errors clearly, with file + line, instead of "fire"
+// frames in the minified bundle.
+window.addEventListener("error", (e) => {
+  // eslint-disable-next-line no-console
+  console.error("[WINDOW ERROR]", e.message, "@", e.filename + ":" + e.lineno + ":" + e.colno, e.error && e.error.stack);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  // eslint-disable-next-line no-console
+  console.error("[UNHANDLED REJECTION]", (e.reason && (e.reason.message || e.reason)) || e.reason, e.reason && e.reason.stack);
+});
+
 
 const Themed: React.FC = () => {
   const mode = useFilters((s) => s.theme);
