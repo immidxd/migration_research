@@ -18,10 +18,21 @@ maplibregl.setWorkerUrl("/maplibre-gl-csp-worker.js");
 /** Convert a 2-point LineString into a curved arc (quadratic bezier).
  *  Lifts the midpoint perpendicular to the chord, with curvature
  *  proportional to the chord length so short hops stay subtle.
+ *
+ *  Antimeridian handling: when |Δlon| > 180°, the shortest geographic
+ *  path crosses the 180°/-180° line. We add or subtract 360° to the
+ *  destination's longitude so the bezier interpolates the SHORT way.
+ *  MapLibre wraps the resulting coords back into the visible map.
+ *  Без цього Владивосток→Нью-Йорк йде у "недоречний" бік через всю Європу.
  */
 function curveLine(coords: [number, number][], steps = 32): [number, number][] {
   if (coords.length !== 2) return coords;
-  const [a, b] = coords;
+  let [a, b] = coords;
+  // Antimeridian fix: pick the shorter wrap.
+  let dxRaw = b[0] - a[0];
+  if (dxRaw > 180) b = [b[0] - 360, b[1]];
+  else if (dxRaw < -180) b = [b[0] + 360, b[1]];
+
   const dx = b[0] - a[0], dy = b[1] - a[1];
   const len = Math.hypot(dx, dy);
   // Perpendicular unit vector

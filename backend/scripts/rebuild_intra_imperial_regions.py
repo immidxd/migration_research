@@ -110,14 +110,23 @@ def run() -> None:
             else:
                 logger.warning("skipped %s — row or members missing", umbrella)
 
-        # Європейська Росія = union of all RiStat gubernias whose centroid
-        # lies west of the Urals (lon < 60°E). Cheap and reproducible.
+        # Європейська Росія = union of EVERY gubernia in the Russian Empire
+        # whose centroid is west of the Urals (60°E). Includes both:
+        #  - RiStat-sourced (slug ri1897-*)
+        #  - my older Ukrainian seeders that kept slug `ru-gub-*` and just
+        #    had their geom REPLACED by the RiStat data.
+        # Bug fix: the previous version filtered by `LIKE 'ri1897-%'` and
+        # accidentally excluded the 8 Ukrainian gubernias, leaving a
+        # Ukraine-shaped hole inside Європейська Росія.
         eu = db.execute(
             text("""
                 WITH m AS (
                     SELECT ST_Union(geom) AS g
                     FROM territories
-                    WHERE code LIKE 'ri1897-%'
+                    WHERE kind = 'gubernia'
+                      AND empire = 'russian_empire'
+                      AND is_umbrella_region = false
+                      AND geom IS NOT NULL
                       AND ST_X(ST_Centroid(geom)) < 60
                 )
                 UPDATE territories t
@@ -128,16 +137,18 @@ def run() -> None:
             """),
         ).first()
         if eu:
-            logger.info("rebuilt ru-region-european (centroid west of 60°E) → id=%s", eu[0])
+            logger.info("rebuilt ru-region-european (every RI gubernia west of 60°E) → id=%s", eu[0])
 
-        # Азіатська частина РІ (the umbrella the user's flows point at) =
-        # union of all RiStat gubernias whose centroid is east of the Urals
+        # Азіатська частина РІ = the eastern counterpart
         as_ri = db.execute(
             text("""
                 WITH m AS (
                     SELECT ST_Union(geom) AS g
                     FROM territories
-                    WHERE code LIKE 'ri1897-%'
+                    WHERE kind = 'gubernia'
+                      AND empire = 'russian_empire'
+                      AND is_umbrella_region = false
+                      AND geom IS NOT NULL
                       AND ST_X(ST_Centroid(geom)) >= 60
                 )
                 UPDATE territories t
@@ -148,7 +159,7 @@ def run() -> None:
             """),
         ).first()
         if as_ri:
-            logger.info("rebuilt ru-region-asian-ri (centroid east of 60°E) → id=%s", as_ri[0])
+            logger.info("rebuilt ru-region-asian-ri (every RI gubernia east of 60°E) → id=%s", as_ri[0])
 
         db.commit()
     finally:

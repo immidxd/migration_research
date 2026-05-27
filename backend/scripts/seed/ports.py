@@ -75,6 +75,15 @@ PORTS = [
      "operator": "Переселенське управління МВД РІ",
      "active_from": date(1893, 1, 1),
      "active_to": date(1917, 1, 1)},
+
+    # New York Harbor immigration station — primary US entry point for
+    # transatlantic arrivals during the user's research period.
+    {"code": "border-ellis-island", "name": "Острів Елліс",
+     "lon": -74.0395, "lat": 40.6995,
+     "kind": TerritoryKind.BORDER_CROSSING,
+     "operator": "United States Bureau of Immigration",
+     "active_from": date(1892, 1, 1),
+     "active_to": date(1954, 11, 12)},
 ]
 
 
