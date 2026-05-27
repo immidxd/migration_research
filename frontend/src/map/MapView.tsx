@@ -271,11 +271,15 @@ const MapView: React.FC = () => {
         },
       });
 
-      // Umbrella regions — empire-tinted fill + matching outline
+      // Umbrella regions (`is_umbrella_region=true`, e.g. Treadgold's
+      // European/Asiatic Russia) get OUTLINE ONLY at low opacity — they
+      // are conceptual containers and shouldn't paint over the regions
+      // nested inside them. Regular regions get a soft fill.
       map.addLayer({
         id: "regions-fill",
         type: "fill",
         source: "regions",
+        filter: ["!=", ["get", "is_umbrella_region"], true],
         paint: {
           "fill-color": [
             "match",
@@ -286,9 +290,9 @@ const MapView: React.FC = () => {
           ],
           "fill-opacity": [
             "case",
-            ["==", ["get", "in_scope"], false], 0.08,
-            ["==", ["get", "id"], selectedId ?? -1], 0.85,
-            0.55,
+            ["==", ["get", "in_scope"], false], 0.05,
+            ["==", ["get", "id"], selectedId ?? -1], 0.7,
+            0.32,
           ],
         },
       });
@@ -305,12 +309,37 @@ const MapView: React.FC = () => {
           ],
           "line-width": [
             "case",
-            ["==", ["get", "id"], selectedId ?? -1], 4,
-            2.5,
+            ["==", ["get", "id"], selectedId ?? -1], 3.5,
+            ["==", ["get", "is_umbrella_region"], true], 1.2,
+            2,
           ],
           "line-opacity": [
-            "case", ["==", ["get", "in_scope"], false], 0.2, 1,
+            "case",
+            ["==", ["get", "in_scope"], false], 0.15,
+            ["==", ["get", "is_umbrella_region"], true], 0.5,
+            0.9,
           ],
+          "line-dasharray": [1, 0],
+        },
+      });
+      // Optional dashed outline ONLY for umbrella regions, painted on top
+      // of the solid outline. Adds visual distinction without expression
+      // problems (constant dasharray, layer filter does the selection).
+      map.addLayer({
+        id: "regions-outline-umbrella",
+        type: "line",
+        source: "regions",
+        filter: ["==", ["get", "is_umbrella_region"], true],
+        paint: {
+          "line-color": [
+            "match", ["get", "empire"],
+            "russian_empire", C.regionLineRu,
+            "austro_hungarian", C.regionLineAh,
+            C.regionLineOther,
+          ],
+          "line-width": 1.5,
+          "line-opacity": 0.6,
+          "line-dasharray": [4, 4],
         },
       });
       map.addLayer({
@@ -320,15 +349,31 @@ const MapView: React.FC = () => {
         layout: {
           "text-field": ["coalesce", ["get", "name_local"], ["get", "name"]],
           "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
-          "text-size": 13,
-          "text-anchor": "center",
+          // Smaller text for umbrella regions; bigger for actual regions.
+          "text-size": [
+            "case",
+            ["==", ["get", "is_umbrella_region"], true], 11,
+            13,
+          ],
+          // ONE label per feature centroid (was getting duplicates).
+          "symbol-placement": "point",
           "text-allow-overlap": false,
-          "text-padding": 4,
+          "text-ignore-placement": false,
+          "text-padding": 8,
         },
         paint: {
-          "text-color": C.text,
+          "text-color": [
+            "case",
+            ["==", ["get", "is_umbrella_region"], true], C.regionLineRu,
+            C.text,
+          ],
           "text-halo-color": C.halo,
-          "text-halo-width": 1.8,
+          "text-halo-width": 1.6,
+          "text-opacity": [
+            "case",
+            ["==", ["get", "is_umbrella_region"], true], 0.65,
+            1,
+          ],
         },
       });
 
@@ -372,7 +417,7 @@ const MapView: React.FC = () => {
         },
       });
 
-      // Flow arcs — coloured by vector, width by count_method
+      // Flow arcs — soft glow underlay for legibility
       map.addLayer({
         id: "flows-glow",
         type: "line",
@@ -388,25 +433,29 @@ const MapView: React.FC = () => {
             "internal", "#90be6d",
             "#cccccc",
           ],
-          "line-width": [
-            "interpolate", ["linear"], ["zoom"],
-            3, 6, 8, 14,
-          ],
+          "line-width": 9,
           "line-blur": 4,
-          "line-opacity": 0.35,
+          "line-opacity": 0.32,
         },
       });
+      // Per-vector colours now that we know the basic rendering works.
       map.addLayer({
         id: "flows-line",
         type: "line",
         source: "flows",
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
-          // Simplified: constant style for now. Will reintroduce per-vector
-          // colours and width-by-count after confirming basic rendering.
-          "line-color": "#b585e8",
-          "line-width": 3,
-          "line-opacity": 0.9,
+          "line-color": [
+            "match", ["get", "vector"],
+            "transatlantic", "#ff8c8c",
+            "european", "#7dd6f6",
+            "intra_imperial_east", "#c89bf6",
+            "intra_imperial_other", "#fcd968",
+            "internal", "#a7d685",
+            "#dddddd",
+          ],
+          "line-width": 3.5,
+          "line-opacity": 0.95,
         },
       });
       // flows-label intentionally omitted for now — re-add after confirming

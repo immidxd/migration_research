@@ -37,10 +37,16 @@ TREADGOLD = [
         "code": "ru-region-european",
         "name": "Європейська Росія (за Treadgold)",
         "name_local": "Європейська Росія",
+        # Refined hull: actual European-Russia footprint of the Empire,
+        # excluding Finland/Sweden/Greenland nonsense that the earlier
+        # coarse hull pulled in. North: White Sea coast (~67°N). East:
+        # the Urals (~60°E). South: Caucasus foothills (~44°N). West: the
+        # Polish/Galician edge (~22°E).
         "polygon": [
-            (20.0, 70.0), (60.0, 70.0), (60.0, 50.0), (52.0, 45.0),
-            (47.0, 40.0), (37.0, 44.0), (28.0, 45.0), (24.0, 50.0),
-            (22.0, 55.0), (20.0, 60.0),
+            (22.0, 54.0), (28.0, 56.0), (32.0, 60.0), (40.0, 66.0),
+            (50.0, 67.0), (58.0, 67.0), (60.0, 60.0), (60.0, 50.0),
+            (52.0, 46.0), (47.0, 44.0), (38.0, 44.5), (32.0, 45.0),
+            (28.0, 46.0), (24.0, 49.0), (22.0, 54.0),
         ],
         "description": "За D. W. Treadgold (1957): «the homeland west of the Urals» — "
                        "метропольний простір Російської імперії, протиставлений Asiatic Russia.",
@@ -49,9 +55,14 @@ TREADGOLD = [
         "code": "ru-region-asiatic",
         "name": "Азіатська Росія (за Treadgold)",
         "name_local": "Азіатська Росія",
+        # Refined: tight to the imperial-era footprint east of the Urals.
+        # South: Kazakh steppe (~48°N in west, dropping to ~42°N along the
+        # Chinese border in the east). Excludes Mongolia & China proper.
         "polygon": [
-            (60.0, 78.0), (180.0, 75.0), (180.0, 42.0), (140.0, 40.0),
-            (90.0, 39.0), (60.0, 39.0), (60.0, 70.0),
+            (60.0, 72.0), (80.0, 76.0), (110.0, 76.0), (140.0, 73.0),
+            (170.0, 70.0), (180.0, 67.0), (180.0, 58.0), (155.0, 52.0),
+            (135.0, 48.0), (120.0, 49.0), (95.0, 50.0), (80.0, 50.0),
+            (60.0, 50.0), (60.0, 72.0),
         ],
         "description": "За D. W. Treadgold (1957): «Asiatic Russia» — Сибір, "
                        "Далекий Схід, Центральна Азія, на схід від Уралу.",
