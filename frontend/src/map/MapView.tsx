@@ -1,9 +1,18 @@
 import React, { useEffect, useRef, useState } from "react";
-import maplibregl, { Map, MapGeoJSONFeature } from "maplibre-gl";
+// CSP-safe build of maplibre-gl: the worker is loaded from an external
+// URL (set via `setWorkerUrl` below) instead of an inlined blob URL.
+// pywebview's WKWebView blocks blob: workers, which caused every GeoJSON
+// tile to fail with "Can't find variable: a" and left the map blank.
+import maplibregl, { Map, MapGeoJSONFeature } from "maplibre-gl/dist/maplibre-gl-csp";
+import "maplibre-gl/dist/maplibre-gl.css";
 
 import { useFlowsGeoJSON } from "../api/flows";
 import { useTerritoryLayer } from "../api/territories";
 import { scopeRange, useFilters } from "../store";
+
+// Point maplibre at the worker file we copied into public/.
+// `public/` files are served at site root by CRA.
+maplibregl.setWorkerUrl("/maplibre-gl-csp-worker.js");
 
 
 /** Convert a 2-point LineString into a curved arc (quadratic bezier).
