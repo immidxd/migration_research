@@ -41,7 +41,7 @@ class Territory(Base):
     # External / canonical id: ISO_A2 / ISO_A3 for countries, custom slugs
     # (e.g. "ua-region-pravoberezhzhia") for umbrella regions. Lets seeders
     # be idempotent without relying on free-text name uniqueness.
-    code: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    code: Mapped[str | None] = mapped_column(String(160), unique=True, index=True)
     parent_id: Mapped[int | None] = mapped_column(
         ForeignKey("territories.id", ondelete="SET NULL"), index=True
     )

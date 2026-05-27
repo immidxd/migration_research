@@ -11,7 +11,7 @@ import argparse
 import logging
 
 from backend.scripts.seed import (
-    countries, gubernias, intra_imperial, ports,
+    countries, gubernias, intra_imperial, ports, ri_1897,
     temporal_labels, treadgold_regions, umbrella_regions,
 )
 
@@ -20,7 +20,8 @@ SEEDERS = {
     "temporal": temporal_labels.run,
     "regions": umbrella_regions.run,
     "treadgold": treadgold_regions.run,
-    "gubernias": gubernias.run,
+    "gubernias": gubernias.run,           # hand-drawn placeholders
+    "ri_1897": ri_1897.run,               # real RiStat boundaries (preferred)
     "intra_imperial": intra_imperial.run,
     "ports": ports.run,
     "countries": countries.run,

@@ -58,6 +58,8 @@ def list_territories(
         SELECT
             id, kind, name, name_local, code, empire,
             is_umbrella_region,
+            EXTRACT(YEAR FROM valid_from)::int AS valid_year_from,
+            EXTRACT(YEAR FROM valid_to)::int   AS valid_year_to,
             ST_AsGeoJSON(geom)::json AS geometry
         FROM territories
         {"WHERE " + " AND ".join(where) if where else ""}
@@ -69,7 +71,8 @@ def list_territories(
         # Drop geometry to keep the payload light for sidebar lists.
         return {
             "items": [
-                {k: v for k, v in r.items() if k != "geometry"} for r in rows
+                {k: v for k, v in r.items() if k not in ("geometry",)}
+                for r in rows
             ],
             "count": len(rows),
         }
@@ -91,6 +94,8 @@ def list_territories(
                     "code": r["code"],
                     "empire": r["empire"],
                     "is_umbrella_region": r["is_umbrella_region"],
+                    "valid_year_from": r["valid_year_from"],
+                    "valid_year_to": r["valid_year_to"],
                 },
             }
         )
