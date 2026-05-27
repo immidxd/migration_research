@@ -224,16 +224,9 @@ const MapView: React.FC = () => {
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
 
-    map.on("load", () => {
+    const onLoad = () => {
       try {
-        runLoad(map);
-      } catch (err) {
-        console.error("[MapView] load handler crashed:", err);
-      }
-    });
-
-    function runLoad(map: Map) {
-      loadedRef.current = true;
+        loadedRef.current = true;
       const C = themeColors(themeMode);
 
       for (const id of ["countries", "regions", "ports", "flows"] as const) {
@@ -393,58 +386,15 @@ const MapView: React.FC = () => {
         source: "flows",
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
-          "line-color": [
-            "match", ["get", "vector"],
-            "transatlantic", "#ff8c8c",
-            "european", "#7dd6f6",
-            "intra_imperial_east", "#b585e8",
-            "intra_imperial_other", "#fcd968",
-            "internal", "#a7d685",
-            "#dddddd",
-          ],
-          "line-width": [
-            "case",
-            ["==", ["get", "provisional"], true], 1.5,
-            ["interpolate", ["linear"], ["coalesce", ["get", "count"], 100],
-              0, 1.2, 100, 1.8, 1000, 2.8, 10000, 4.2, 100000, 6,
-            ],
-          ],
-          "line-opacity": [
-            "case",
-            ["==", ["get", "provisional"], true], 0.45,
-            0.9,
-          ],
-          // NOTE: maplibre does NOT support data expressions for
-          // line-dasharray. It must be a constant. We use lower opacity
-          // to distinguish provisional flows instead of a dashed pattern.
+          // Simplified: constant style for now. Will reintroduce per-vector
+          // colours and width-by-count after confirming basic rendering.
+          "line-color": "#b585e8",
+          "line-width": 3,
+          "line-opacity": 0.9,
         },
       });
-      map.addLayer({
-        id: "flows-label",
-        type: "symbol",
-        source: "flows",
-        minzoom: 4,
-        layout: {
-          "symbol-placement": "line-center",
-          "text-field": [
-            "case",
-            ["has", "count"],
-              ["concat", ["to-string", ["get", "count"]], " осіб"],
-            ["has", "count_lower"],
-              ["concat",
-                ["to-string", ["get", "count_lower"]], "–",
-                ["to-string", ["get", "count_upper"]], " осіб"],
-            "",
-          ],
-          "text-size": 10,
-          "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
-        },
-        paint: {
-          "text-color": C.text,
-          "text-halo-color": C.halo,
-          "text-halo-width": 1.4,
-        },
-      });
+      // flows-label intentionally omitted for now — re-add after confirming
+      // the basic line rendering works in WKWebView.
 
       // Selection halo for any layer
       const haloColor = themeMode === "dark" ? "#ffffff" : "#111111";
@@ -503,7 +453,11 @@ const MapView: React.FC = () => {
       // sources are now never left empty after style load.
       pushAllData(map, stateRef.current, setRenderedCounts);
       console.log("[MapView] load complete. layers:", map.getStyle().layers.map((l: any) => l.id));
-    }
+      } catch (err) {
+        console.error("[MapView] load handler crashed:", err);
+      }
+    };
+    map.on("load", onLoad);
 
     // Also resize whenever the window changes
     const onResize = () => map.resize();
