@@ -85,8 +85,12 @@ aside::-webkit-scrollbar-thumb:hover { background: var(--accent-soft); }
 /* Hide the popup tip — colouring all four borders made it a solid square. */
 .flow-popup .maplibregl-popup-tip { display: none; }
 
-/* Slider handle — subtle scale-on-hover for polish. */
+/* Slider handle — subtle scale-on-hover for polish.
+   Explicit default state (scale 1, no shadow) is required so the browser
+   knows the "from" value and the reverse transition fires immediately. */
 .ant-slider-handle::after {
+  transform: scale(1) !important;
+  box-shadow: none !important;
   transition: transform .15s ease, box-shadow .15s ease !important;
 }
 .ant-slider-handle:hover::after,
