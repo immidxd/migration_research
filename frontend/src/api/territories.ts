@@ -31,6 +31,29 @@ export interface TerritoryDetail extends TerritoryRow {
     operator: string | null;
     notes: string | null;
   } | null;
+  periods: Array<{
+    id: number;
+    year_from: number;
+    year_to: number;
+    status: string | null;
+    name: string | null;
+    name_local: string | null;
+    sovereign_id: number | null;
+    notes: string | null;
+  }> | null;
+  stats: Array<{
+    id: number;
+    stat_kind: string;
+    group_label: string | null;
+    as_of_year: number | null;
+    temporal_label_id: number | null;
+    count: number | null;
+    count_lower: number | null;
+    count_upper: number | null;
+    count_method: string;
+    provisional: boolean;
+    notes: string | null;
+  }> | null;
 }
 
 export type FeatureCollection = GeoJSON.FeatureCollection<
@@ -56,13 +79,14 @@ export function useTerritoryLayer(kinds: string[]) {
 // One-point-per-feature label source. Used by the map's symbol layer so
 // large multipart polygons (Сибір, Європейська Росія, …) get ONE label
 // instead of one per island.
-export function useTerritoryLabels(kinds: string[]) {
-  return useQuery<GeoJSON.FeatureCollection<GeoJSON.Point, TerritoryRow>>({
-    queryKey: ["territory-labels", kinds.sort().join(",")],
+export function useTerritoryLabels(kinds: string[], year?: number) {
+  return useQuery<GeoJSON.FeatureCollection<GeoJSON.Point, TerritoryRow & { period_status: string | null }>>({
+    queryKey: ["territory-labels", kinds.sort().join(","), year ?? null],
     queryFn: async () => {
       if (kinds.length === 0) return { type: "FeatureCollection", features: [] };
+      const yq = year != null ? `&year=${year}` : "";
       const { data } = await api.get(
-        `/territories.labels?${kindsToParams(kinds)}`
+        `/territories.labels?${kindsToParams(kinds)}${yq}`
       );
       return data;
     },

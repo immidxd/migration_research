@@ -113,6 +113,9 @@ type SourceSnapshot = {
   regions: GeoJSON.FeatureCollection | undefined;
   regionsLabels: GeoJSON.FeatureCollection | undefined;
   ports: GeoJSON.FeatureCollection | undefined;
+  subdivisions: GeoJSON.FeatureCollection | undefined;
+  subdivisionLabels: GeoJSON.FeatureCollection | undefined;
+  settlements: GeoJSON.FeatureCollection | undefined;
   flows: any;
   empires: Set<string>;
   vectors: Set<string>;
@@ -152,6 +155,9 @@ function pushAllData(
   const rFC = empiresFilter(s.regions);
   const rLFC = empiresFilter(s.regionsLabels);
   const pFC = empiresFilter(s.ports);
+  const subFC = empiresFilter(s.subdivisions);
+  const subLFC = empiresFilter(s.subdivisionLabels);
+  const setFC = empiresFilter(s.settlements);
 
   const flowFC = s.flows
     ? {
@@ -172,6 +178,9 @@ function pushAllData(
   (map.getSource("regions") as maplibregl.GeoJSONSource | undefined)?.setData(rFC);
   (map.getSource("regions-labels") as maplibregl.GeoJSONSource | undefined)?.setData(rLFC);
   (map.getSource("ports") as maplibregl.GeoJSONSource | undefined)?.setData(pFC);
+  (map.getSource("subdivisions") as maplibregl.GeoJSONSource | undefined)?.setData(subFC);
+  (map.getSource("subdivisions-labels") as maplibregl.GeoJSONSource | undefined)?.setData(subLFC);
+  (map.getSource("settlements") as maplibregl.GeoJSONSource | undefined)?.setData(setFC);
   (map.getSource("flows") as maplibregl.GeoJSONSource | undefined)?.setData(flowFC);
 
   setCounts({
@@ -197,10 +206,22 @@ const MapView: React.FC = () => {
 
   const countriesQ = useTerritoryLayer(["country"]);
   const regionsQ = useTerritoryLayer(["region"]);
-  const regionsLabelsQ = useTerritoryLabels(["region"]);
+  // Labels reflect the period-appropriate name for a single chosen year
+  // (e.g. "Королівство Гаваї" vs "Гаваї (США)"); only meaningful in year mode.
+  const labelYear = scope.mode === "year" ? scope.year : undefined;
+  const regionsLabelsQ = useTerritoryLabels(["region"], labelYear);
   const portsQ = useTerritoryLayer(["port", "border_crossing"]);
+  // Destination layers (North America etc.): states/provinces as polygons and
+  // cities as points. Subdivision labels are year-aware (Hawaii Kingdom → US).
+  const subdivisionsQ = useTerritoryLayer(["subdivision"]);
+  const subdivisionLabelsQ = useTerritoryLabels(["subdivision"], labelYear);
+  const settlementsQ = useTerritoryLayer(["settlement"]);
+  // Filter flows by the active temporal scope's canonical year range — works
+  // for year / range / label modes alike (null when no scope is set).
+  const scopeR = scopeRange(scope);
   const flowsQ = useFlowsGeoJSON({
-    covering_year: scope.mode === "year" ? scope.year : undefined,
+    from_year: scopeR?.[0],
+    to_year: scopeR?.[1],
   });
 
   // --- Ref that always holds the freshest query data + filter state.
@@ -212,6 +233,9 @@ const MapView: React.FC = () => {
     regions: undefined as GeoJSON.FeatureCollection | undefined,
     regionsLabels: undefined as GeoJSON.FeatureCollection | undefined,
     ports: undefined as GeoJSON.FeatureCollection | undefined,
+    subdivisions: undefined as GeoJSON.FeatureCollection | undefined,
+    subdivisionLabels: undefined as GeoJSON.FeatureCollection | undefined,
+    settlements: undefined as GeoJSON.FeatureCollection | undefined,
     flows: undefined as any,
     empires,
     vectors: vectorsState,
@@ -222,6 +246,9 @@ const MapView: React.FC = () => {
     regions: regionsQ.data,
     regionsLabels: regionsLabelsQ.data,
     ports: portsQ.data,
+    subdivisions: subdivisionsQ.data,
+    subdivisionLabels: subdivisionLabelsQ.data,
+    settlements: settlementsQ.data,
     flows: flowsQ.data,
     empires,
     vectors: vectorsState,
@@ -262,7 +289,10 @@ const MapView: React.FC = () => {
         loadedRef.current = true;
       const C = themeColors(themeMode);
 
-      for (const id of ["countries", "regions", "regions-labels", "ports", "flows"] as const) {
+      for (const id of [
+        "countries", "regions", "regions-labels", "ports",
+        "subdivisions", "subdivisions-labels", "settlements", "flows",
+      ] as const) {
         map.addSource(id, { type: "geojson", data: EMPTY_FC });
       }
 
@@ -435,6 +465,71 @@ const MapView: React.FC = () => {
         },
       });
 
+      // Subdivisions (US states / Canadian provinces) — soft fill + outline,
+      // drawn above countries so destination units read clearly.
+      map.addLayer({
+        id: "subdivisions-fill",
+        type: "fill",
+        source: "subdivisions",
+        paint: { "fill-color": "#6b8cce", "fill-opacity": 0.12 },
+      });
+      map.addLayer({
+        id: "subdivisions-line",
+        type: "line",
+        source: "subdivisions",
+        paint: { "line-color": "#8aa4d8", "line-width": 0.8, "line-opacity": 0.65 },
+      });
+      map.addLayer({
+        id: "subdivisions-label",
+        type: "symbol",
+        source: "subdivisions-labels",
+        minzoom: 3.5,
+        layout: {
+          "text-field": ["coalesce", ["get", "name_local"], ["get", "name"]],
+          "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+          "text-size": 11,
+          "text-allow-overlap": false,
+          "text-padding": 6,
+        },
+        paint: {
+          "text-color": C.text,
+          "text-halo-color": C.halo,
+          "text-halo-width": 1.4,
+        },
+      });
+
+      // Settlements (destination cities) — small circles + labels.
+      map.addLayer({
+        id: "settlements-circle",
+        type: "circle",
+        source: "settlements",
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 3, 8, 6],
+          "circle-color": "#7dd6f6",
+          "circle-stroke-color": C.portStroke,
+          "circle-stroke-width": 1.5,
+        },
+      });
+      map.addLayer({
+        id: "settlements-label",
+        type: "symbol",
+        source: "settlements",
+        minzoom: 4.5,
+        layout: {
+          "text-field": ["coalesce", ["get", "name_local"], ["get", "name"]],
+          "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+          "text-size": 10,
+          "text-offset": [0, 1],
+          "text-anchor": "top",
+          "text-optional": true,
+        },
+        paint: {
+          "text-color": C.text,
+          "text-halo-color": C.halo,
+          "text-halo-width": 1.3,
+        },
+      });
+
       // Flow arcs — soft glow underlay for legibility
       map.addLayer({
         id: "flows-glow",
@@ -548,11 +643,11 @@ const MapView: React.FC = () => {
         filter: ["==", ["get", "id"], -1],
       });
 
-      for (const lyr of ["regions-fill", "ports-circle", "countries-fill", "flows-line"]) {
+      for (const lyr of ["regions-fill", "ports-circle", "countries-fill", "subdivisions-fill", "settlements-circle", "flows-line"]) {
         map.on("mouseenter", lyr, () => { map.getCanvas().style.cursor = "pointer"; });
         map.on("mouseleave", lyr, () => { map.getCanvas().style.cursor = ""; });
       }
-      for (const lyr of ["regions-fill", "ports-circle", "countries-fill"]) {
+      for (const lyr of ["regions-fill", "ports-circle", "countries-fill", "subdivisions-fill", "settlements-circle"]) {
         map.on("click", lyr, (e) => {
           const f = e.features?.[0] as MapGeoJSONFeature | undefined;
           if (f?.properties?.id != null) selectTerritory(Number(f.properties.id));
@@ -594,7 +689,7 @@ const MapView: React.FC = () => {
     if (!map || !loadedRef.current) return;
     pushAllData(map, stateRef.current, setRenderedCounts);
 
-  }, [countriesQ.data, regionsQ.data, portsQ.data, flowsQ.data, empires, scope, vectorsState]);
+  }, [countriesQ.data, regionsQ.data, portsQ.data, subdivisionsQ.data, subdivisionLabelsQ.data, settlementsQ.data, flowsQ.data, empires, scope, vectorsState]);
 
 
   // --- visibility toggles ---
@@ -604,6 +699,8 @@ const MapView: React.FC = () => {
     const showCountry = kinds.has("country");
     const showRegion = kinds.has("region");
     const showPort = kinds.has("port") || kinds.has("border_crossing");
+    const showSubdivision = kinds.has("subdivision");
+    const showSettlement = kinds.has("settlement");
     const toggle: Array<[string, boolean]> = [
       ["countries-fill", showCountry],
       ["countries-line", showCountry],
@@ -612,6 +709,11 @@ const MapView: React.FC = () => {
       ["regions-label", showRegion],
       ["ports-circle", showPort],
       ["ports-label", showPort],
+      ["subdivisions-fill", showSubdivision],
+      ["subdivisions-line", showSubdivision],
+      ["subdivisions-label", showSubdivision],
+      ["settlements-circle", showSettlement],
+      ["settlements-label", showSettlement],
     ];
     for (const [id, on] of toggle) {
       if (map.getLayer(id)) {

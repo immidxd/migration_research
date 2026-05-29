@@ -33,7 +33,8 @@ const KIND_OPTIONS: { value: TerritoryKind; label: string }[] = [
   { value: "region", label: "Регіони (парасолькові)" },
   { value: "gubernia", label: "Губернії" },
   { value: "uezd", label: "Повіти" },
-  { value: "settlement", label: "Поселення" },
+  { value: "subdivision", label: "Штати / провінції" },
+  { value: "settlement", label: "Поселення / міста" },
   { value: "port", label: "Порти" },
   { value: "border_crossing", label: "Переходи / станції" },
 ];
