@@ -141,13 +141,26 @@ function pushAllData(
   setCounts: (c: { c: number; r: number; p: number; f: number }) => void,
 ) {
   const scopeR = scopeRange(s.scope);
+  // Region role from the (vector-filtered) flows: a region that is a flow
+  // DESTINATION reads as a receiver (saturated fill); an ORIGIN as a homeland
+  // (medium fill); neither → faint. Drives the fill gradation the user asked for.
+  const receiverIds = new Set<number>();
+  const originIds = new Set<number>();
+  for (const f of (s.flows?.features ?? []) as any[]) {
+    if (!s.vectors.has(f.properties.vector)) continue;
+    if (f.properties.destination_territory_id != null) receiverIds.add(f.properties.destination_territory_id);
+    if (f.properties.origin_territory_id != null) originIds.add(f.properties.origin_territory_id);
+  }
+  const roleOf = (id: any): string =>
+    receiverIds.has(id) ? "receiver" : originIds.has(id) ? "origin" : "none";
+
   const tag = (f: GeoJSON.Feature) => {
     const p: any = f.properties || {};
     const inScope = !scopeR || (
       (p.valid_year_from == null || p.valid_year_from <= scopeR[1]) &&
       (p.valid_year_to == null || p.valid_year_to >= scopeR[0])
     );
-    return { ...f, properties: { ...p, in_scope: inScope } };
+    return { ...f, properties: { ...p, in_scope: inScope, role: roleOf(p.id) } };
   };
   const empiresFilter = (fc: GeoJSON.FeatureCollection | undefined) => {
     if (!fc) return EMPTY_FC;
@@ -335,7 +348,11 @@ const MapView: React.FC = () => {
         id: "regions-fill",
         type: "fill",
         source: "regions",
-        filter: ["!=", ["get", "is_umbrella_region"], true],
+        // Fill every meaningful region; the big aggregation containers
+        // (Наддніпрянщина, European/Asian Russia, the empire) are flagged
+        // is_container and stay outline-only so they don't paint over nested
+        // regions.
+        filter: ["!=", ["get", "is_container"], true],
         paint: {
           "fill-color": [
             "match",
@@ -344,11 +361,15 @@ const MapView: React.FC = () => {
             "austro_hungarian", C.regionFillAh,
             C.regionFillOther,
           ],
+          // Visual gradation by role: receiver (flow destination) strongest,
+          // origin (homeland) medium, unused region faint.
           "fill-opacity": [
             "case",
             ["==", ["get", "in_scope"], false], 0.05,
-            ["==", ["get", "id"], selectedId ?? -1], 0.7,
-            0.32,
+            ["==", ["get", "id"], selectedId ?? -1], 0.78,
+            ["==", ["get", "role"], "receiver"], 0.55,
+            ["==", ["get", "role"], "origin"], 0.3,
+            0.12,
           ],
         },
       });
@@ -366,13 +387,13 @@ const MapView: React.FC = () => {
           "line-width": [
             "case",
             ["==", ["get", "id"], selectedId ?? -1], 3.5,
-            ["==", ["get", "is_umbrella_region"], true], 1.2,
+            ["==", ["get", "is_container"], true], 1.2,
             2,
           ],
           "line-opacity": [
             "case",
             ["==", ["get", "in_scope"], false], 0.15,
-            ["==", ["get", "is_umbrella_region"], true], 0.5,
+            ["==", ["get", "is_container"], true], 0.5,
             0.9,
           ],
           "line-dasharray": [1, 0],
@@ -385,7 +406,7 @@ const MapView: React.FC = () => {
         id: "regions-outline-umbrella",
         type: "line",
         source: "regions",
-        filter: ["==", ["get", "is_umbrella_region"], true],
+        filter: ["==", ["get", "is_container"], true],
         paint: {
           "line-color": [
             "match", ["get", "empire"],
@@ -411,7 +432,7 @@ const MapView: React.FC = () => {
           "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
           "text-size": [
             "case",
-            ["==", ["get", "is_umbrella_region"], true], 11,
+            ["==", ["get", "is_container"], true], 11,
             13,
           ],
           "text-allow-overlap": false,
@@ -421,14 +442,14 @@ const MapView: React.FC = () => {
         paint: {
           "text-color": [
             "case",
-            ["==", ["get", "is_umbrella_region"], true], C.regionLineRu,
+            ["==", ["get", "is_container"], true], C.regionLineRu,
             C.text,
           ],
           "text-halo-color": C.halo,
           "text-halo-width": 1.6,
           "text-opacity": [
             "case",
-            ["==", ["get", "is_umbrella_region"], true], 0.65,
+            ["==", ["get", "is_container"], true], 0.65,
             1,
           ],
         },
@@ -743,9 +764,11 @@ const MapView: React.FC = () => {
     if (map.getLayer("regions-fill")) {
       map.setPaintProperty("regions-fill", "fill-opacity", [
         "case",
-        ["==", ["get", "in_scope"], false], 0.08,
+        ["==", ["get", "in_scope"], false], 0.05,
         ["==", ["get", "id"], selectedId ?? -1], 0.85,
-        0.55,
+        ["==", ["get", "role"], "receiver"], 0.55,
+        ["==", ["get", "role"], "origin"], 0.3,
+        0.12,
       ] as any);
     }
     if (map.getLayer("regions-outline")) {

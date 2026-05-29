@@ -139,6 +139,7 @@ def list_flows_geojson(
     sql = f"""
         SELECT
             f.id, f.vector, f.transport_mode,
+            f.origin_territory_id, f.destination_territory_id,
             f.count, f.count_lower, f.count_upper, f.count_method,
             f.origin_precision, f.destination_precision,
             f.provisional, f.date_precision,
@@ -185,6 +186,8 @@ def list_flows_geojson(
             "properties": {
                 "id": r["id"],
                 "vector": r["vector"],
+                "origin_territory_id": r["origin_territory_id"],
+                "destination_territory_id": r["destination_territory_id"],
                 "transport_mode": r["transport_mode"],
                 "count": r["count"],
                 "count_lower": r["count_lower"],

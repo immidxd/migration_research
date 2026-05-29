@@ -9,6 +9,7 @@ export interface TerritoryRow {
   code: string | null;
   empire: string | null;
   is_umbrella_region: boolean;
+  is_container?: boolean;
 }
 
 export interface TerritoryDetail extends TerritoryRow {

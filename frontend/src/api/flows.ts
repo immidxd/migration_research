@@ -125,6 +125,8 @@ export interface FlowFeature
   extends GeoJSON.Feature<GeoJSON.LineString, {
     id: number;
     vector: string;
+    origin_territory_id: number;
+    destination_territory_id: number;
     transport_mode: string;
     count: number | null;
     count_lower: number | null;

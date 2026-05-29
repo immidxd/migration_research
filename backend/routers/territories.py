@@ -58,6 +58,10 @@ def list_territories(
         SELECT
             id, kind, name, name_local, code, empire,
             is_umbrella_region,
+            EXISTS (
+                SELECT 1 FROM territories c
+                WHERE c.parent_id = territories.id AND c.kind = 'region'
+            ) AS is_container,
             EXTRACT(YEAR FROM valid_from)::int AS valid_year_from,
             EXTRACT(YEAR FROM valid_to)::int   AS valid_year_to,
             ST_AsGeoJSON(geom)::json AS geometry
@@ -94,6 +98,7 @@ def list_territories(
                     "code": r["code"],
                     "empire": r["empire"],
                     "is_umbrella_region": r["is_umbrella_region"],
+                    "is_container": r["is_container"],
                     "valid_year_from": r["valid_year_from"],
                     "valid_year_to": r["valid_year_to"],
                 },
@@ -126,6 +131,10 @@ def territory_label_points(
     sql = f"""
         SELECT
             t.id, t.kind, t.code, t.empire, t.is_umbrella_region,
+            EXISTS (
+                SELECT 1 FROM territories c
+                WHERE c.parent_id = t.id AND c.kind = 'region'
+            ) AS is_container,
             COALESCE(p.name, t.name) AS name,
             COALESCE(p.name_local, t.name_local) AS name_local,
             p.status AS period_status,
@@ -159,6 +168,7 @@ def territory_label_points(
                     "code": r["code"],
                     "empire": r["empire"],
                     "is_umbrella_region": r["is_umbrella_region"],
+                    "is_container": r["is_container"],
                     "period_status": r["period_status"],
                 },
             }
