@@ -184,21 +184,35 @@ def search_territories(
     limit: int = 20,
     db: Session = Depends(get_db),
 ) -> list[dict[str, Any]]:
-    """Typeahead by name, name_local, or code. Case-insensitive."""
+    """Typeahead across name, name_local, code AND aliases (UK / RU / EN).
+
+    Matching an alias (territory_aliases) lets the Russian-named RiStat units be
+    found by their Ukrainian or English forms (Полтавська / Poltava → Полтавская
+    губерния). Results are de-duplicated and prefix/name matches rank first."""
+    alias_match = (
+        "EXISTS (SELECT 1 FROM territory_aliases a "
+        "WHERE a.territory_id = t.id AND a.alias ILIKE :pat)"
+    )
     where = []
     params: dict[str, Any] = {"pat": f"%{q}%", "q": q, "lim": min(limit, 100)}
     if q:
-        where.append("(name ILIKE :pat OR name_local ILIKE :pat OR code ILIKE :pat)")
+        where.append(
+            f"(t.name ILIKE :pat OR t.name_local ILIKE :pat OR t.code ILIKE :pat OR {alias_match})"
+        )
     if kind:
-        where.append("kind::text = ANY(:kinds)")
+        where.append("t.kind::text = ANY(:kinds)")
         params["kinds"] = kind
     sql = f"""
-        SELECT id, kind, name, name_local, code, empire, is_umbrella_region
-        FROM territories
+        SELECT t.id, t.kind, t.name, t.name_local, t.code, t.empire, t.is_umbrella_region
+        FROM territories t
         {"WHERE " + " AND ".join(where) if where else ""}
         ORDER BY
-          CASE WHEN name ILIKE :pat THEN 0 ELSE 1 END,
-          kind, name
+          CASE
+            WHEN t.name ILIKE :q || '%' OR t.name_local ILIKE :q || '%' THEN 0
+            WHEN t.name ILIKE :pat OR t.name_local ILIKE :pat THEN 1
+            ELSE 2
+          END,
+          t.kind, t.name
         LIMIT :lim
     """
     rows = db.execute(text(sql), params).mappings().all()

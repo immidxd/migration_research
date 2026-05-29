@@ -13,7 +13,8 @@ import logging
 from backend.scripts.seed import (
     ah_crownlands, cities, countries, fix_ukr_gubernia_geom, gubernias, hawaii,
     hierarchy, intra_imperial, manchuria, ports, ri_1897, subdivisions,
-    temporal_labels, treadgold_regions, umbrella_regions, zakarpattia,
+    temporal_labels, treadgold_regions, ukr_aliases, umbrella_regions,
+    zakarpattia,
 )
 
 
@@ -34,6 +35,7 @@ SEEDERS = {
     "ah_crownlands": ah_crownlands.run,   # real Galicia/Bukovina boundaries (HistoGIS 1910)
     "zakarpattia": zakarpattia.run,       # Transcarpathia = union of Hungarian komitats (HistoGIS 1835)
     "fix_ukr_gubernia_geom": fix_ukr_gubernia_geom.run,  # real Podilia/Volyn geom + rebuild umbrellas
+    "ukr_aliases": ukr_aliases.run,       # UK/EN aliases for Ukrainian gubernias (multilingual search)
 }
 
 
