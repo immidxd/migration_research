@@ -365,11 +365,11 @@ const MapView: React.FC = () => {
           // origin (homeland) medium, unused region faint.
           "fill-opacity": [
             "case",
-            ["==", ["get", "in_scope"], false], 0.05,
-            ["==", ["get", "id"], selectedId ?? -1], 0.78,
-            ["==", ["get", "role"], "receiver"], 0.55,
-            ["==", ["get", "role"], "origin"], 0.3,
-            0.12,
+            ["==", ["get", "in_scope"], false], 0.06,
+            ["==", ["get", "id"], selectedId ?? -1], 0.82,
+            ["==", ["get", "role"], "receiver"], 0.62,
+            ["==", ["get", "role"], "origin"], 0.42,
+            0.26,
           ],
         },
       });
@@ -764,11 +764,11 @@ const MapView: React.FC = () => {
     if (map.getLayer("regions-fill")) {
       map.setPaintProperty("regions-fill", "fill-opacity", [
         "case",
-        ["==", ["get", "in_scope"], false], 0.05,
+        ["==", ["get", "in_scope"], false], 0.06,
         ["==", ["get", "id"], selectedId ?? -1], 0.85,
-        ["==", ["get", "role"], "receiver"], 0.55,
-        ["==", ["get", "role"], "origin"], 0.3,
-        0.12,
+        ["==", ["get", "role"], "receiver"], 0.62,
+        ["==", ["get", "role"], "origin"], 0.42,
+        0.26,
       ] as any);
     }
     if (map.getLayer("regions-outline")) {
