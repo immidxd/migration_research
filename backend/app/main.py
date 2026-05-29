@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.app.settings import PROJECT_ROOT, get_settings
 from backend.routers import flows as flows_router
 from backend.routers import sources as sources_router
+from backend.routers import analytics as analytics_router
 from backend.routers import relations as relations_router
 from backend.routers import stats as stats_router
 from backend.routers import temporal as temporal_router
@@ -54,6 +55,7 @@ def create_app() -> FastAPI:
     app.include_router(flows_router.router)
     app.include_router(stats_router.router)
     app.include_router(relations_router.router)
+    app.include_router(analytics_router.router)
 
     # Serve the built frontend if present.
     build_dir = PROJECT_ROOT / "frontend" / "build"
