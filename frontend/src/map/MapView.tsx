@@ -35,7 +35,9 @@ function curveSegment(a: [number, number], b0: [number, number], steps: number):
   const dx = b[0] - a[0], dy = b[1] - a[1];
   const len = Math.hypot(dx, dy);
   const nx = -dy / (len || 1), ny = dx / (len || 1);
-  const lift = Math.min(len * 0.18, 12);
+  // Gentle, capped curvature — strong lifts turned long arcs into wedge-like
+  // blobs at regional zoom.
+  const lift = Math.min(len * 0.1, 5);
   const mx = (a[0] + b[0]) / 2 + nx * lift;
   const my = (a[1] + b[1]) / 2 + ny * lift;
   const out: [number, number][] = [];
@@ -231,6 +233,7 @@ const MapView: React.FC = () => {
   const empires = useFilters((s) => s.empires);
   const selectedId = useFilters((s) => s.selectedTerritoryId);
   const selectTerritory = useFilters((s) => s.selectTerritory);
+  const openFlowEditor = useFilters((s) => s.openFlowEditor);
   const scope = useFilters((s) => s.scope);
   const themeMode = useFilters((s) => s.theme);
   const vectorsState = useFilters((s) => s.vectors);
@@ -407,15 +410,15 @@ const MapView: React.FC = () => {
           ],
           "line-width": [
             "case",
-            ["==", ["get", "id"], selectedId ?? -1], 3.5,
-            ["==", ["get", "is_container"], true], 1.2,
-            2,
+            ["==", ["get", "id"], selectedId ?? -1], 2,
+            ["==", ["get", "is_container"], true], 0.8,
+            1.2,
           ],
           "line-opacity": [
             "case",
             ["==", ["get", "in_scope"], false], 0.15,
-            ["==", ["get", "is_container"], true], 0.5,
-            0.9,
+            ["==", ["get", "is_container"], true], 0.45,
+            0.75,
           ],
           "line-dasharray": [1, 0],
         },
@@ -636,59 +639,75 @@ const MapView: React.FC = () => {
         },
       });
 
-      // Flow arcs — soft glow underlay for legibility
+      // --- Flow arcs: minimalist. Width scales with the number of people, so
+      // big movements read as thick ribbons and small ones as hairlines.
+      const VECTOR_COLOR: any = [
+        "match", ["get", "vector"],
+        "transatlantic", "#ff8c8c",
+        "european", "#7dd6f6",
+        "intra_imperial_east", "#c89bf6",
+        "intra_imperial_other", "#fcd968",
+        "internal", "#a7d685",
+        "#cfcfcf",
+      ];
+      const FLOW_WIDTH: any = [
+        "interpolate", ["linear"], ["coalesce", ["get", "count"], 5000],
+        0, 1,
+        20000, 1.6,
+        100000, 2.6,
+        400000, 3.8,
+        1200000, 5.5,
+      ];
+
+      // Faint underlay glow (thin, low opacity) — just enough to lift arcs off
+      // the basemap without the old fat blur.
       map.addLayer({
         id: "flows-glow",
         type: "line",
         source: "flows",
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
-          "line-color": [
-            "match", ["get", "vector"],
-            "transatlantic", "#ff6b6b",
-            "european", "#4cc9f0",
-            "intra_imperial_east", "#9b5de5",
-            "intra_imperial_other", "#f9c74f",
-            "internal", "#90be6d",
-            "#cccccc",
-          ],
-          "line-width": 9,
-          "line-blur": 4,
-          "line-opacity": 0.32,
+          "line-color": VECTOR_COLOR,
+          "line-width": ["*", FLOW_WIDTH, 2.4],
+          "line-blur": 2.5,
+          "line-opacity": 0.12,
         },
       });
-      // Per-vector colours now that we know the basic rendering works.
       map.addLayer({
         id: "flows-line",
         type: "line",
         source: "flows",
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
-          "line-color": [
-            "match", ["get", "vector"],
-            "transatlantic", "#ff8c8c",
-            "european", "#7dd6f6",
-            "intra_imperial_east", "#c89bf6",
-            "intra_imperial_other", "#fcd968",
-            "internal", "#a7d685",
-            "#dddddd",
-          ],
-          "line-width": 3.5,
-          "line-opacity": 0.95,
+          "line-color": VECTOR_COLOR,
+          "line-width": FLOW_WIDTH,
+          "line-opacity": ["case", ["get", "provisional"], 0.45, 0.78],
         },
       });
-      // Minimalist direction arrows along each flow arc. Unicode ▶ glyph
-      // placed along the line at ~180px intervals, rotated to follow the
-      // curve. Same colour as the flow line, with a halo for legibility.
+      // Hover highlight: brightened, slightly thicker copy drawn only for the
+      // hovered flow + its sub-flows (filter set on mousemove).
+      map.addLayer({
+        id: "flows-hover",
+        type: "line",
+        source: "flows",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": VECTOR_COLOR,
+          "line-width": ["+", FLOW_WIDTH, 1.5],
+          "line-opacity": 1,
+        },
+        filter: ["==", ["get", "id"], -1],
+      });
+      // Direction arrows — subtle, only on the hovered flow to avoid clutter.
       map.addLayer({
         id: "flows-arrow",
         type: "symbol",
         source: "flows",
         layout: {
           "symbol-placement": "line",
-          "symbol-spacing": 180,
+          "symbol-spacing": 140,
           "text-field": "▶",
-          "text-size": 13,
+          "text-size": 12,
           "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
           "text-keep-upright": false,
           "text-rotation-alignment": "map",
@@ -697,19 +716,12 @@ const MapView: React.FC = () => {
           "text-ignore-placement": true,
         },
         paint: {
-          "text-color": [
-            "match", ["get", "vector"],
-            "transatlantic", "#ff8c8c",
-            "european", "#7dd6f6",
-            "intra_imperial_east", "#c89bf6",
-            "intra_imperial_other", "#fcd968",
-            "internal", "#a7d685",
-            "#dddddd",
-          ],
+          "text-color": VECTOR_COLOR,
           "text-halo-color": C.halo,
-          "text-halo-width": 1.6,
-          "text-opacity": 0.9,
+          "text-halo-width": 1.4,
+          "text-opacity": 0.95,
         },
+        filter: ["==", ["get", "id"], -1],
       });
 
       // Selection halo for any layer
@@ -721,9 +733,9 @@ const MapView: React.FC = () => {
         source: "regions",
         paint: {
           "line-color": haloColor,
-          "line-width": 12,
-          "line-blur": 6,
-          "line-opacity": 0.35,
+          "line-width": 5,
+          "line-blur": 3,
+          "line-opacity": 0.2,
         },
         filter: ["==", ["get", "id"], -1],
       });
@@ -731,7 +743,7 @@ const MapView: React.FC = () => {
         id: "selection-region",
         type: "line",
         source: "regions",
-        paint: { "line-color": haloColor, "line-width": 4 },
+        paint: { "line-color": haloColor, "line-width": 1.6, "line-opacity": 0.85 },
         filter: ["==", ["get", "id"], -1],
       });
       map.addLayer({
@@ -759,6 +771,55 @@ const MapView: React.FC = () => {
           if (f?.properties?.id != null) selectTerritory(Number(f.properties.id));
         });
       }
+
+      // --- Flow hover: highlight the hovered flow + its sub-flows, show a
+      // summary popup, and open the editor on click.
+      const flowPopup = new maplibregl.Popup({
+        closeButton: false, closeOnClick: false, offset: 12, className: "flow-popup",
+      });
+      const fmtNum = (n: any) => (n == null ? null : Number(n).toLocaleString("uk"));
+      const onFlowMove = (e: any) => {
+        const f = e.features?.[0];
+        if (!f) return;
+        map.getCanvas().style.cursor = "pointer";
+        const p: any = f.properties || {};
+        let kids: number[] = [];
+        try {
+          kids = typeof p.child_ids === "string" ? JSON.parse(p.child_ids) : (p.child_ids || []);
+        } catch { kids = []; }
+        const ids = [Number(p.id), ...kids.map(Number)];
+        const filt = ["in", ["get", "id"], ["literal", ids]] as any;
+        map.setFilter("flows-hover", filt);
+        map.setFilter("flows-arrow", filt);
+        const amount = p.count != null ? `${fmtNum(p.count)} осіб`
+          : p.count_lower != null ? `${fmtNum(p.count_lower)}–${fmtNum(p.count_upper)} осіб`
+          : "кількість невідома";
+        const period = p.temporal_label || (p.date_from ? `${p.date_from}→${p.date_to}` : "");
+        const sub = ids.length > 1 ? `<div style="opacity:.6;margin-top:3px">+ ${ids.length - 1} підпотік(ів)</div>` : "";
+        flowPopup
+          .setLngLat(e.lngLat)
+          .setHTML(
+            `<div style="font:12px/1.35 system-ui;color:#f5e9d0">
+               <div style="font-weight:600">${p.origin_name} → ${p.destination_name}</div>
+               <div style="opacity:.75">${amount}${period ? " · " + period : ""}</div>
+               ${sub}
+               <div style="opacity:.5;margin-top:4px">клік — редагувати</div>
+             </div>`
+          )
+          .addTo(map);
+      };
+      const onFlowLeave = () => {
+        map.getCanvas().style.cursor = "";
+        map.setFilter("flows-hover", ["==", ["get", "id"], -1] as any);
+        map.setFilter("flows-arrow", ["==", ["get", "id"], -1] as any);
+        flowPopup.remove();
+      };
+      map.on("mousemove", "flows-line", onFlowMove);
+      map.on("mouseleave", "flows-line", onFlowLeave);
+      map.on("click", "flows-line", (e) => {
+        const f = e.features?.[0];
+        if (f?.properties?.id != null) openFlowEditor(Number(f.properties.id));
+      });
 
       // Force a resize after one tick — pywebview sometimes mounts the
       // container with no width on first paint.
@@ -856,8 +917,8 @@ const MapView: React.FC = () => {
     if (map.getLayer("regions-outline")) {
       map.setPaintProperty("regions-outline", "line-width", [
         "case",
-        ["==", ["get", "id"], selectedId ?? -1], 4,
-        2.5,
+        ["==", ["get", "id"], selectedId ?? -1], 2,
+        1.2,
       ] as any);
     }
 

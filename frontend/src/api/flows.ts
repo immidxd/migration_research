@@ -140,6 +140,7 @@ export interface FlowFeature
     date_precision: string;
     provisional: boolean;
     source_count: number;
+    child_ids: number[];
   }> {}
 
 export interface FlowFeatureCollection

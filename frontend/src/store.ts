@@ -71,6 +71,8 @@ interface FilterState {
 
   // Statistics report drawer.
   statsReportOpen: boolean;
+  // Flows management drawer.
+  flowsDrawerOpen: boolean;
 
   toggleKind: (k: TerritoryKind) => void;
   toggleEmpire: (e: Empire) => void;
@@ -81,6 +83,7 @@ interface FilterState {
   openFlowEditor: (flowId?: number | null) => void;
   closeFlowEditor: () => void;
   setStatsReportOpen: (open: boolean) => void;
+  setFlowsDrawerOpen: (open: boolean) => void;
 }
 
 const initialTheme: ThemeMode = (() => {
@@ -106,6 +109,7 @@ export const useFilters = create<FilterState>((set) => ({
   flowEditorOpen: false,
   editingFlowId: null,
   statsReportOpen: false,
+  flowsDrawerOpen: false,
 
   toggleKind: (k) => set((s) => {
     const next = new Set(s.kinds);
@@ -132,6 +136,7 @@ export const useFilters = create<FilterState>((set) => ({
   openFlowEditor: (flowId = null) => set({ flowEditorOpen: true, editingFlowId: flowId }),
   closeFlowEditor: () => set({ flowEditorOpen: false, editingFlowId: null }),
   setStatsReportOpen: (open) => set({ statsReportOpen: open }),
+  setFlowsDrawerOpen: (open) => set({ flowsDrawerOpen: open }),
 }));
 
 // Apply initial theme attribute synchronously so first paint matches.

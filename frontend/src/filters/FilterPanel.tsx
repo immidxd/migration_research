@@ -1,7 +1,7 @@
 import React from "react";
 
 import { useTerritoryList } from "../api/territories";
-import { FlowsList } from "../panels/FlowsList";
+import { useFlows } from "../api/flows";
 import {
   Empire,
   MigrationVector,
@@ -94,6 +94,9 @@ const FilterPanel: React.FC = () => {
   } = useFilters();
 
   const setStatsReportOpen = useFilters((s) => s.setStatsReportOpen);
+  const setFlowsDrawerOpen = useFilters((s) => s.setFlowsDrawerOpen);
+  const flowsQ = useFlows();
+  const flowsCount = flowsQ.data?.length ?? 0;
   const regionsQ = useTerritoryList(["region"]);
   const portsQ = useTerritoryList(["port", "border_crossing"]);
 
@@ -164,13 +167,23 @@ const FilterPanel: React.FC = () => {
       </div>
 
       <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border-soft)" }}>
-        <div
-          className="text-xs uppercase tracking-wider mb-2"
-          style={{ color: "var(--text-muted)" }}
+        <button
+          onClick={() => setFlowsDrawerOpen(true)}
+          className="w-full flex items-center justify-between px-2 py-1.5 text-sm rounded"
+          style={{
+            background: "var(--bg-panel)",
+            color: "var(--text-base)",
+            border: "1px solid var(--border-soft)",
+          }}
         >
-          Введені потоки
-        </div>
-        <FlowsList />
+          <span>Введені потоки</span>
+          <span
+            className="text-xs px-1.5 py-0.5 rounded"
+            style={{ background: "var(--accent-soft)", color: "var(--text-strong)" }}
+          >
+            {flowsCount}
+          </span>
+        </button>
       </div>
 
       <Section title={`Регіони (${regionsQ.data?.count ?? 0})`}>

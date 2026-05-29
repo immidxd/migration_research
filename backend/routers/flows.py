@@ -158,7 +158,16 @@ def list_flows_geojson(
                 FROM flow_waypoints w JOIN territories wt ON wt.id = w.territory_id
                 WHERE w.flow_id = f.id AND wt.geom IS NOT NULL
             ) AS waypoint_coords,
-            (SELECT COUNT(*) FROM flow_sources fs WHERE fs.flow_id = f.id) AS source_count
+            (SELECT COUNT(*) FROM flow_sources fs WHERE fs.flow_id = f.id) AS source_count,
+            -- sub-flows: anything this flow contains, plus shares taken of it
+            COALESCE((
+                SELECT array_agg(DISTINCT cid) FROM (
+                    SELECT r.to_flow_id AS cid FROM flow_relations r
+                    WHERE r.from_flow_id = f.id AND r.kind = 'contains'
+                    UNION
+                    SELECT sf.id FROM migration_flows sf WHERE sf.share_base_flow_id = f.id
+                ) q
+            ), ARRAY[]::int[]) AS child_ids
         FROM migration_flows f
         JOIN territories o ON o.id = f.origin_territory_id
         JOIN territories d ON d.id = f.destination_territory_id
@@ -201,6 +210,7 @@ def list_flows_geojson(
                 "date_precision": r["date_precision"],
                 "provisional": r["provisional"],
                 "source_count": r["source_count"],
+                "child_ids": list(r["child_ids"] or []),
             },
         })
     return {"type": "FeatureCollection", "features": features}

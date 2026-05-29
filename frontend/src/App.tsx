@@ -3,6 +3,7 @@ import FilterPanel from "./filters/FilterPanel";
 import MapView from "./map/MapView";
 import InspectorPanel from "./panels/InspectorPanel";
 import { FlowEditor } from "./panels/FlowEditor";
+import { FlowsDrawer } from "./panels/FlowsDrawer";
 import { StatsReport } from "./panels/StatsReport";
 import Timeline from "./timeline/Timeline";
 import { useFilters } from "./store";
@@ -14,6 +15,8 @@ const App: React.FC = () => {
   const closeFlowEditor = useFilters((s) => s.closeFlowEditor);
   const statsReportOpen = useFilters((s) => s.statsReportOpen);
   const setStatsReportOpen = useFilters((s) => s.setStatsReportOpen);
+  const flowsDrawerOpen = useFilters((s) => s.flowsDrawerOpen);
+  const setFlowsDrawerOpen = useFilters((s) => s.setFlowsDrawerOpen);
 
   return (
     <div
@@ -52,6 +55,7 @@ const App: React.FC = () => {
       </main>
       <FlowEditor open={editorOpen} flowId={editingFlowId} onClose={closeFlowEditor} />
       <StatsReport open={statsReportOpen} onClose={() => setStatsReportOpen(false)} />
+      <FlowsDrawer open={flowsDrawerOpen} onClose={() => setFlowsDrawerOpen(false)} />
     </div>
   );
 };
