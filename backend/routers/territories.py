@@ -105,6 +105,7 @@ def list_territories(
 @router.get(".labels")
 def territory_label_points(
     kind: list[str] | None = Query(default=None),
+    year: int | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     """One label point per territory feature (not per polygon part).
@@ -112,18 +113,34 @@ def territory_label_points(
     `ST_PointOnSurface` of the whole MultiPolygon gives a single point
     inside the largest part — perfect for placing a single readable label
     on a region that has many islands (e.g. Сибір with 15 sub-polygons,
-    each previously getting its own duplicate label)."""
+    each previously getting its own duplicate label).
+
+    When `year` is given, the name/name_local/status are taken from the
+    matching territory_period (so Hawaii reads "Королівство Гаваї" before
+    annexation and "Гаваї (США)" after), falling back to the base row."""
     where = []
-    params: dict[str, Any] = {}
+    params: dict[str, Any] = {"yr": year}
     if kind:
-        where.append("kind::text = ANY(:kinds)")
+        where.append("t.kind::text = ANY(:kinds)")
         params["kinds"] = kind
     sql = f"""
         SELECT
-            id, kind, name, name_local, code, empire, is_umbrella_region,
-            ST_AsGeoJSON(ST_PointOnSurface(geom))::json AS pt
-        FROM territories
-        WHERE geom IS NOT NULL
+            t.id, t.kind, t.code, t.empire, t.is_umbrella_region,
+            COALESCE(p.name, t.name) AS name,
+            COALESCE(p.name_local, t.name_local) AS name_local,
+            p.status AS period_status,
+            ST_AsGeoJSON(ST_PointOnSurface(t.geom))::json AS pt
+        FROM territories t
+        LEFT JOIN LATERAL (
+            SELECT name, name_local, status
+            FROM territory_periods tp
+            WHERE tp.territory_id = t.id
+              AND :yr IS NOT NULL
+              AND tp.year_from <= :yr AND tp.year_to >= :yr
+            ORDER BY tp.year_from DESC
+            LIMIT 1
+        ) p ON true
+        WHERE t.geom IS NOT NULL
               {('AND ' + ' AND '.join(where)) if where else ''}
     """
     rows = db.execute(text(sql), params).mappings().all()
@@ -142,6 +159,7 @@ def territory_label_points(
                     "code": r["code"],
                     "empire": r["empire"],
                     "is_umbrella_region": r["is_umbrella_region"],
+                    "period_status": r["period_status"],
                 },
             }
             for r in rows if r["pt"] is not None
@@ -203,7 +221,38 @@ def get_territory(territory_id: int, db: Session = Depends(get_db)) -> dict[str,
                 SELECT row_to_json(p)
                 FROM transit_point_profiles p
                 WHERE p.territory_id = t.id
-            ) AS transit_profile
+            ) AS transit_profile,
+            (
+                SELECT json_agg(json_build_object(
+                    'id', tp.id,
+                    'year_from', tp.year_from,
+                    'year_to', tp.year_to,
+                    'status', tp.status,
+                    'name', tp.name,
+                    'name_local', tp.name_local,
+                    'sovereign_id', tp.sovereign_id,
+                    'notes', tp.notes
+                ) ORDER BY tp.year_from)
+                FROM territory_periods tp
+                WHERE tp.territory_id = t.id
+            ) AS periods,
+            (
+                SELECT json_agg(json_build_object(
+                    'id', ts.id,
+                    'stat_kind', ts.stat_kind,
+                    'group_label', ts.group_label,
+                    'as_of_year', ts.as_of_year,
+                    'temporal_label_id', ts.temporal_label_id,
+                    'count', ts.count,
+                    'count_lower', ts.count_lower,
+                    'count_upper', ts.count_upper,
+                    'count_method', ts.count_method,
+                    'provisional', ts.provisional,
+                    'notes', ts.notes
+                ) ORDER BY ts.as_of_year)
+                FROM territory_stats ts
+                WHERE ts.territory_id = t.id
+            ) AS stats
         FROM territories t
         WHERE t.id = :tid
     """

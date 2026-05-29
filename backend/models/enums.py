@@ -104,3 +104,17 @@ class CountMethod(str, enum.Enum):
     ESTIMATE = "estimate"    # source or scholar gives an estimate
     RANGE = "range"          # only a lower/upper range is known
     UNKNOWN = "unknown"      # no count, or unrecoverable
+
+
+class StatKind(str, enum.Enum):
+    """Kind of a territorial stock/snapshot fact (territory_stats).
+
+    A "stock" is a state-at-a-point-in-time, NOT a flow: e.g. "10,000
+    Ukrainians counted in Canada as of 1908". Distinct from migration_flows,
+    which measure movement between two places over a period.
+    """
+
+    DIASPORA_STOCK = "diaspora_stock"        # people of an origin group present in a place
+    TOTAL_POPULATION = "total_population"     # total population of the territory
+    IMMIGRANT_ARRIVALS = "immigrant_arrivals"  # arrivals counted in a year (annual inflow)
+    OTHER = "other"

@@ -65,6 +65,34 @@ class TerritorySource(Base):
     __table_args__ = (PrimaryKeyConstraint("territory_id", "source_id"),)
 
 
+class TerritoryPeriodSource(Base):
+    """Source-attestation of a territory's status/name during a period."""
+
+    __tablename__ = "territory_period_sources"
+    period_id: Mapped[int] = mapped_column(
+        ForeignKey("territory_periods.id", ondelete="CASCADE"), nullable=False
+    )
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("sources.id", ondelete="RESTRICT"), nullable=False
+    )
+    note: Mapped[str | None] = mapped_column(Text)
+    __table_args__ = (PrimaryKeyConstraint("period_id", "source_id"),)
+
+
+class TerritoryStatSource(Base):
+    """Source-attestation of a territorial stock fact."""
+
+    __tablename__ = "territory_stat_sources"
+    stat_id: Mapped[int] = mapped_column(
+        ForeignKey("territory_stats.id", ondelete="CASCADE"), nullable=False
+    )
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("sources.id", ondelete="RESTRICT"), nullable=False
+    )
+    note: Mapped[str | None] = mapped_column(Text)
+    __table_args__ = (PrimaryKeyConstraint("stat_id", "source_id"),)
+
+
 class AliasSource(Base):
     """Source-attestation of a territory's alias being used at a given time."""
 
