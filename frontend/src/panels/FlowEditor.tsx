@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Drawer, Form, Input, InputNumber, Radio, Select, Button, Modal, message } from "antd";
 
 type TimeMode = "label" | "year" | "range";
 
-import { useCreateFlow, useCreateSource } from "../api/flows";
+import { useCreateFlow, useCreateSource, useFlow, useUpdateFlow } from "../api/flows";
 import { drawerBodyOrSelf, SourcePicker, TerritoryPicker } from "./pickers";
 import { useTemporalLabels } from "../api/temporal";
 
@@ -38,6 +38,22 @@ const PRECISION_OPTS = [
 
 import { TerritorySearchRow } from "../api/flows";
 
+/** Map a picked territory's `kind` to the matching precision level, so the
+ *  precision selects default sensibly (gubernia → gubernia, port → point…).
+ *  The user can still override afterwards. */
+const KIND_TO_PRECISION: Record<string, string> = {
+  settlement: "settlement",
+  volost: "volost",
+  uezd: "uezd",
+  gubernia: "gubernia",
+  region: "region",
+  country: "country",
+  subdivision: "region",      // states / provinces — closest sub-national level
+  port: "point",
+  station: "point",
+  border_crossing: "point",
+};
+
 const ConfirmChip: React.FC<{ row: TerritorySearchRow | null }> = ({ row }) => {
   if (!row) return null;
   return (
@@ -62,7 +78,12 @@ const ConfirmChip: React.FC<{ row: TerritorySearchRow | null }> = ({ row }) => {
 };
 
 
-export const FlowEditor: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
+export const FlowEditor: React.FC<{
+  open: boolean;
+  onClose: () => void;
+  flowId?: number | null;
+}> = ({ open, onClose, flowId = null }) => {
+  const isEditing = flowId != null;
   const [origin, setOrigin] = useState<number | null>(null);
   const [destination, setDestination] = useState<number | null>(null);
   const [originRow, setOriginRow] = useState<TerritorySearchRow | null>(null);
@@ -92,6 +113,43 @@ export const FlowEditor: React.FC<{ open: boolean; onClose: () => void }> = ({ o
 
   const labelsQ = useTemporalLabels();
   const createFlow = useCreateFlow();
+  const updateFlow = useUpdateFlow();
+  const flowQ = useFlow(open ? flowId : null);
+
+  // Prefill from the loaded flow when editing; clear back to defaults when
+  // opening for a new flow. Keyed on the editor opening / target changing.
+  useEffect(() => {
+    if (!open) return;
+    if (!isEditing) { reset(); return; }
+    const f = flowQ.data;
+    if (!f) return;
+    setOrigin(f.origin_territory_id);
+    setDestination(f.destination_territory_id);
+    setOriginRow({ id: f.origin_territory_id, kind: f.origin_precision, name: f.origin_name, name_local: null, code: null, empire: null });
+    setDestRow({ id: f.destination_territory_id, kind: f.destination_precision, name: f.destination_name, name_local: null, code: null, empire: null });
+    setOriginPrec(f.origin_precision);
+    setDestPrec(f.destination_precision);
+    if (f.temporal_label_id != null) {
+      setTimeMode("label");
+      setLabelId(f.temporal_label_id);
+    } else if (f.date_from && f.date_to) {
+      const yf = Number(f.date_from.slice(0, 4));
+      const yt = Number(f.date_to.slice(0, 4));
+      if (yf === yt) { setTimeMode("year"); setYear(yf); }
+      else { setTimeMode("range"); setYearFrom(yf); setYearTo(yt); }
+    } else {
+      setTimeMode("range");
+    }
+    setVector(f.vector);
+    setTransport(f.transport_mode);
+    setCountMethod(f.count_method);
+    setCount(f.count);
+    setCountLower(f.count_lower);
+    setCountUpper(f.count_upper);
+    setNotes(f.notes ?? "");
+    setSourceIds(f.sources.map((s) => s.source_id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, flowId, flowQ.data]);
 
   const reset = () => {
     setOrigin(null); setDestination(null);
@@ -163,26 +221,32 @@ export const FlowEditor: React.FC<{ open: boolean; onClose: () => void }> = ({ o
     }
     const t = resolveTime();
     if (!t) return;
+    const payload = {
+      origin_territory_id: origin,
+      destination_territory_id: destination,
+      ...t,
+      count: countMethod === "exact" || countMethod === "estimate" ? count : null,
+      count_lower: countMethod === "range" ? countLower : null,
+      count_upper: countMethod === "range" ? countUpper : null,
+      count_method: countMethod,
+      vector, transport_mode: transport,
+      origin_precision: originPrec,
+      destination_precision: destPrec,
+      notes: notes || null,
+      sources: sourceIds.map((id) => ({ source_id: id })),
+    };
     try {
-      await createFlow.mutateAsync({
-        origin_territory_id: origin,
-        destination_territory_id: destination,
-        ...t,
-        count: countMethod === "exact" || countMethod === "estimate" ? count : null,
-        count_lower: countMethod === "range" ? countLower : null,
-        count_upper: countMethod === "range" ? countUpper : null,
-        count_method: countMethod,
-        vector, transport_mode: transport,
-        origin_precision: originPrec,
-        destination_precision: destPrec,
-        notes: notes || null,
-        sources: sourceIds.map((id) => ({ source_id: id })),
-      });
-      message.success(
-        sourceIds.length
-          ? "Потік додано"
-          : "Потік додано як provisional (без джерела)"
-      );
+      if (isEditing) {
+        await updateFlow.mutateAsync({ id: flowId!, payload });
+        message.success("Потік оновлено");
+      } else {
+        await createFlow.mutateAsync(payload);
+        message.success(
+          sourceIds.length
+            ? "Потік додано"
+            : "Потік додано як provisional (без джерела)"
+        );
+      }
       reset();
       onClose();
     } catch (e: any) {
@@ -193,12 +257,12 @@ export const FlowEditor: React.FC<{ open: boolean; onClose: () => void }> = ({ o
   return (
     <>
       <Drawer
-        title="Додати міграційний потік"
+        title={isEditing ? "Редагувати міграційний потік" : "Додати міграційний потік"}
         open={open}
         onClose={onClose}
         width={520}
         extra={
-          <Button type="primary" onClick={submit} loading={createFlow.isPending}>
+          <Button type="primary" onClick={submit} loading={createFlow.isPending || updateFlow.isPending}>
             Зберегти
           </Button>
         }
@@ -211,7 +275,12 @@ export const FlowEditor: React.FC<{ open: boolean; onClose: () => void }> = ({ o
           >
             <TerritoryPicker
               value={origin}
-              onChange={(id, row) => { setOrigin(id); setOriginRow(row); }}
+              initialRow={originRow}
+              onChange={(id, row) => {
+                setOrigin(id);
+                setOriginRow(row);
+                if (row && KIND_TO_PRECISION[row.kind]) setOriginPrec(KIND_TO_PRECISION[row.kind]);
+              }}
               placeholder="звідки…"
             />
             <ConfirmChip row={originRow} />
@@ -228,7 +297,12 @@ export const FlowEditor: React.FC<{ open: boolean; onClose: () => void }> = ({ o
           <Form.Item label="Пункт прибуття" required>
             <TerritoryPicker
               value={destination}
-              onChange={(id, row) => { setDestination(id); setDestRow(row); }}
+              initialRow={destRow}
+              onChange={(id, row) => {
+                setDestination(id);
+                setDestRow(row);
+                if (row && KIND_TO_PRECISION[row.kind]) setDestPrec(KIND_TO_PRECISION[row.kind]);
+              }}
               placeholder="куди…"
             />
             <ConfirmChip row={destRow} />

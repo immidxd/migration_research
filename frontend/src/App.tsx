@@ -1,12 +1,16 @@
-import React, { useState } from "react";
+import React from "react";
 import FilterPanel from "./filters/FilterPanel";
 import MapView from "./map/MapView";
 import InspectorPanel from "./panels/InspectorPanel";
 import { FlowEditor } from "./panels/FlowEditor";
 import Timeline from "./timeline/Timeline";
+import { useFilters } from "./store";
 
 const App: React.FC = () => {
-  const [editorOpen, setEditorOpen] = useState(false);
+  const editorOpen = useFilters((s) => s.flowEditorOpen);
+  const editingFlowId = useFilters((s) => s.editingFlowId);
+  const openFlowEditor = useFilters((s) => s.openFlowEditor);
+  const closeFlowEditor = useFilters((s) => s.closeFlowEditor);
 
   return (
     <div
@@ -24,7 +28,7 @@ const App: React.FC = () => {
           <MapView />
           <InspectorPanel />
           <button
-            onClick={() => setEditorOpen(true)}
+            onClick={() => openFlowEditor(null)}
             className="absolute top-3 right-3 w-11 h-11 rounded-full text-2xl font-bold shadow-lg transition flex items-center justify-center"
             title="Додати міграційний потік"
             style={{
@@ -43,7 +47,7 @@ const App: React.FC = () => {
           <Timeline />
         </div>
       </main>
-      <FlowEditor open={editorOpen} onClose={() => setEditorOpen(false)} />
+      <FlowEditor open={editorOpen} flowId={editingFlowId} onClose={closeFlowEditor} />
     </div>
   );
 };

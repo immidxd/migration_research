@@ -52,9 +52,16 @@ export interface FlowCreatePayload {
   sources?: { source_id: number; note?: string | null }[];
 }
 
-export function useFlows(params?: { covering_year?: number; vector?: string[] }) {
+export function useFlows(params?: {
+  covering_year?: number;
+  from_year?: number;
+  to_year?: number;
+  vector?: string[];
+}) {
   const qs = new URLSearchParams();
   if (params?.covering_year != null) qs.set("covering_year", String(params.covering_year));
+  if (params?.from_year != null) qs.set("from_year", String(params.from_year));
+  if (params?.to_year != null) qs.set("to_year", String(params.to_year));
   if (params?.vector) for (const v of params.vector) qs.append("vector", v);
   const s = qs.toString();
   return useQuery<Flow[]>({
@@ -63,12 +70,40 @@ export function useFlows(params?: { covering_year?: number; vector?: string[] })
   });
 }
 
+export function useFlow(id: number | null) {
+  return useQuery<Flow>({
+    queryKey: ["flow", id],
+    enabled: id != null,
+    queryFn: async () => (await api.get(`/migration-flows/${id}`)).data,
+  });
+}
+
 export function useCreateFlow() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: FlowCreatePayload): Promise<Flow> =>
       (await api.post("/migration-flows", payload)).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["flows"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["flows"] });
+      qc.invalidateQueries({ queryKey: ["flows-geo"] });
+    },
+  });
+}
+
+export type FlowUpdatePayload = Partial<FlowCreatePayload> & {
+  provisional?: boolean;
+};
+
+export function useUpdateFlow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, payload }: { id: number; payload: FlowUpdatePayload }): Promise<Flow> =>
+      (await api.patch(`/migration-flows/${id}`, payload)).data,
+    onSuccess: (flow) => {
+      qc.invalidateQueries({ queryKey: ["flows"] });
+      qc.invalidateQueries({ queryKey: ["flows-geo"] });
+      qc.invalidateQueries({ queryKey: ["flow", flow.id] });
+    },
   });
 }
 
@@ -94,9 +129,16 @@ export interface FlowFeature
 export interface FlowFeatureCollection
   extends GeoJSON.FeatureCollection<GeoJSON.LineString, FlowFeature["properties"]> {}
 
-export function useFlowsGeoJSON(params?: { covering_year?: number; vector?: string[] }) {
+export function useFlowsGeoJSON(params?: {
+  covering_year?: number;
+  from_year?: number;
+  to_year?: number;
+  vector?: string[];
+}) {
   const qs = new URLSearchParams();
   if (params?.covering_year != null) qs.set("covering_year", String(params.covering_year));
+  if (params?.from_year != null) qs.set("from_year", String(params.from_year));
+  if (params?.to_year != null) qs.set("to_year", String(params.to_year));
   if (params?.vector) for (const v of params.vector) qs.append("vector", v);
   const s = qs.toString();
   return useQuery<FlowFeatureCollection>({

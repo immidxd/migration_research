@@ -6,10 +6,11 @@ import { scopeRange, useFilters } from "../store";
 
 export const FlowsList: React.FC = () => {
   const scope = useFilters((s) => s.scope);
+  const openFlowEditor = useFilters((s) => s.openFlowEditor);
+  // Narrow the flows list by the active temporal scope's year range
+  // (year / range / label all resolve to a [from, to] pair).
   const r = scopeRange(scope);
-  // When a single-year scope is set, narrow the flows list by `covering_year`.
-  const covering = scope.mode === "year" ? scope.year : undefined;
-  const flowsQ = useFlows({ covering_year: covering });
+  const flowsQ = useFlows({ from_year: r?.[0], to_year: r?.[1] });
   const delFlow = useDeleteFlow();
 
   const muted: React.CSSProperties = { color: "var(--text-muted)" };
@@ -63,14 +64,24 @@ export const FlowsList: React.FC = () => {
                 </div>
               )}
             </div>
-            <Popconfirm
-              title="Видалити потік?"
-              onConfirm={() => delFlow.mutate(f.id)}
-              okText="Так"
-              cancelText="Ні"
-            >
-              <button className="text-xs" style={faint}>×</button>
-            </Popconfirm>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                className="text-xs"
+                style={faint}
+                title="Редагувати потік"
+                onClick={() => openFlowEditor(f.id)}
+              >
+                ✎
+              </button>
+              <Popconfirm
+                title="Видалити потік?"
+                onConfirm={() => delFlow.mutate(f.id)}
+                okText="Так"
+                cancelText="Ні"
+              >
+                <button className="text-xs" style={faint}>×</button>
+              </Popconfirm>
+            </div>
           </div>
         </div>
       ))}

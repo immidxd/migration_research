@@ -65,12 +65,18 @@ interface FilterState {
   scope: TemporalScope;
   theme: ThemeMode;
 
+  // Flow editor: open + which flow is being edited (null = creating a new one).
+  flowEditorOpen: boolean;
+  editingFlowId: number | null;
+
   toggleKind: (k: TerritoryKind) => void;
   toggleEmpire: (e: Empire) => void;
   toggleVector: (v: MigrationVector) => void;
   selectTerritory: (id: number | null) => void;
   setScope: (s: TemporalScope) => void;
   setTheme: (t: ThemeMode) => void;
+  openFlowEditor: (flowId?: number | null) => void;
+  closeFlowEditor: () => void;
 }
 
 const initialTheme: ThemeMode = (() => {
@@ -93,6 +99,8 @@ export const useFilters = create<FilterState>((set) => ({
   selectedTerritoryId: null,
   scope: { mode: "none" },
   theme: initialTheme,
+  flowEditorOpen: false,
+  editingFlowId: null,
 
   toggleKind: (k) => set((s) => {
     const next = new Set(s.kinds);
@@ -116,6 +124,8 @@ export const useFilters = create<FilterState>((set) => ({
     document.documentElement.setAttribute("data-theme", t);
     set({ theme: t });
   },
+  openFlowEditor: (flowId = null) => set({ flowEditorOpen: true, editingFlowId: flowId }),
+  closeFlowEditor: () => set({ flowEditorOpen: false, editingFlowId: null }),
 }));
 
 // Apply initial theme attribute synchronously so first paint matches.

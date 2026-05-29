@@ -16,6 +16,30 @@ from backend.schemas.flows import FlowCreate, FlowOut, FlowUpdate
 router = APIRouter(prefix="/api/migration-flows", tags=["flows"])
 
 
+def _year_overlap_clause(
+    where: list[str],
+    params: dict[str, Any],
+    covering_year: int | None,
+    from_year: int | None,
+    to_year: int | None,
+) -> None:
+    """Append a temporal-overlap predicate to `where`/`params` in place.
+
+    A flow's canonical [date_from, date_to] range is matched against the
+    requested window. NULL endpoints are treated as open-ended. `covering_year`
+    is the single-year shorthand for from_year == to_year."""
+    if covering_year is not None and from_year is None and to_year is None:
+        from_year = to_year = covering_year
+    if from_year is None and to_year is None:
+        return
+    if from_year is not None:
+        where.append("(f.date_to IS NULL OR EXTRACT(YEAR FROM f.date_to) >= :y_from)")
+        params["y_from"] = from_year
+    if to_year is not None:
+        where.append("(f.date_from IS NULL OR EXTRACT(YEAR FROM f.date_from) <= :y_to)")
+        params["y_to"] = to_year
+
+
 _LIST_SQL = """
     SELECT
         f.id,
@@ -54,6 +78,8 @@ def list_flows(
     origin_id: int | None = None,
     destination_id: int | None = None,
     covering_year: int | None = None,
+    from_year: int | None = None,
+    to_year: int | None = None,
     limit: int = 200,
     db: Session = Depends(get_db),
 ):
@@ -68,13 +94,7 @@ def list_flows(
     if destination_id is not None:
         where.append("f.destination_territory_id = :did")
         params["did"] = destination_id
-    if covering_year is not None:
-        # Match flows whose canonical date range overlaps the year.
-        where.append(
-            "((f.date_from IS NULL OR EXTRACT(YEAR FROM f.date_from) <= :y) "
-            "AND (f.date_to IS NULL OR EXTRACT(YEAR FROM f.date_to) >= :y))"
-        )
-        params["y"] = covering_year
+    _year_overlap_clause(where, params, covering_year, from_year, to_year)
 
     sql = f"{_LIST_SQL} {'WHERE ' + ' AND '.join(where) if where else ''} ORDER BY f.created_at DESC LIMIT :lim"
     rows = db.execute(text(sql), params).mappings().all()
@@ -85,6 +105,8 @@ def list_flows(
 def list_flows_geojson(
     vector: list[str] | None = Query(default=None),
     covering_year: int | None = None,
+    from_year: int | None = None,
+    to_year: int | None = None,
     limit: int = 1000,
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
@@ -99,12 +121,7 @@ def list_flows_geojson(
     if vector:
         where.append("f.vector::text = ANY(:vectors)")
         params["vectors"] = vector
-    if covering_year is not None:
-        where.append(
-            "((f.date_from IS NULL OR EXTRACT(YEAR FROM f.date_from) <= :y) "
-            "AND (f.date_to IS NULL OR EXTRACT(YEAR FROM f.date_to) >= :y))"
-        )
-        params["y"] = covering_year
+    _year_overlap_clause(where, params, covering_year, from_year, to_year)
 
     sql = f"""
         SELECT
