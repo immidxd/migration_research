@@ -24,6 +24,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -134,6 +135,39 @@ class MigrationFlow(Base):
     )
 
     sources = relationship("Source", secondary="flow_sources", lazy="selectin")
+    waypoints = relationship(
+        "FlowWaypoint",
+        cascade="all, delete-orphan",
+        order_by="FlowWaypoint.sequence_no",
+        lazy="selectin",
+    )
+
+
+class FlowWaypoint(Base):
+    """An ordered transit / transshipment point a flow passed through.
+
+    Lets a flow record its real multi-hop path (Kyiv → Libau → US; the
+    Chelyabinsk resettlement point) without inventing intermediate flows.
+    The path is origin → waypoint[0] → … → destination. Branching at a
+    waypoint is modelled as separate flows departing that point, linked to the
+    parent via flow_relations (contains) — not here.
+    """
+
+    __tablename__ = "flow_waypoints"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    flow_id: Mapped[int] = mapped_column(
+        ForeignKey("migration_flows.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sequence_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    territory_id: Mapped[int] = mapped_column(
+        ForeignKey("territories.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    note: Mapped[str | None] = mapped_column(Text)
+
+    __table_args__ = (
+        UniqueConstraint("flow_id", "sequence_no", name="uq_flow_waypoint_order"),
+    )
 
 
 class MigrationEvent(Base):

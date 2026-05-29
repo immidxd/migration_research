@@ -35,6 +35,7 @@ export interface Flow {
   provisional: boolean;
   notes: string | null;
   sources: FlowSourceRef[];
+  waypoints: { territory_id: number; territory_name: string | null; sequence_no: number; note: string | null }[];
   created_at: string;
   updated_at: string;
 }
@@ -62,6 +63,7 @@ export interface FlowCreatePayload {
   destination_precision?: string;
   notes?: string | null;
   sources?: { source_id: number; note?: string | null }[];
+  waypoints?: { territory_id: number; note?: string | null }[];
 }
 
 export function useFlows(params?: {

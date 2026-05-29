@@ -25,19 +25,16 @@ maplibregl.setWorkerUrl("/maplibre-gl-csp-worker.js");
  *  MapLibre wraps the resulting coords back into the visible map.
  *  Без цього Владивосток→Нью-Йорк йде у "недоречний" бік через всю Європу.
  */
-function curveLine(coords: [number, number][], steps = 32): [number, number][] {
-  if (coords.length !== 2) return coords;
-  let [a, b] = coords;
+function curveSegment(a: [number, number], b0: [number, number], steps: number): [number, number][] {
+  let b = b0;
   // Antimeridian fix: pick the shorter wrap.
-  let dxRaw = b[0] - a[0];
+  const dxRaw = b[0] - a[0];
   if (dxRaw > 180) b = [b[0] - 360, b[1]];
   else if (dxRaw < -180) b = [b[0] + 360, b[1]];
 
   const dx = b[0] - a[0], dy = b[1] - a[1];
   const len = Math.hypot(dx, dy);
-  // Perpendicular unit vector
   const nx = -dy / (len || 1), ny = dx / (len || 1);
-  // Curvature: 18% of chord length, capped
   const lift = Math.min(len * 0.18, 12);
   const mx = (a[0] + b[0]) / 2 + nx * lift;
   const my = (a[1] + b[1]) / 2 + ny * lift;
@@ -49,6 +46,18 @@ function curveLine(coords: [number, number][], steps = 32): [number, number][] {
       u * u * a[0] + 2 * u * t * mx + t * t * b[0],
       u * u * a[1] + 2 * u * t * my + t * t * b[1],
     ]);
+  }
+  return out;
+}
+
+/** Curve a 2-point line, or a multi-hop path (origin → waypoints → dest) by
+ *  curving each consecutive segment and concatenating (deduping join points). */
+function curveLine(coords: [number, number][], steps = 32): [number, number][] {
+  if (coords.length < 2) return coords;
+  const out: [number, number][] = [];
+  for (let s = 0; s < coords.length - 1; s++) {
+    const seg = curveSegment(coords[s], coords[s + 1], steps);
+    out.push(...(s === 0 ? seg : seg.slice(1)));
   }
   return out;
 }

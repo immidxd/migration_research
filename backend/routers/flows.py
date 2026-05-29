@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.models import get_db
-from backend.models.flows import MigrationFlow
+from backend.models.flows import FlowWaypoint, MigrationFlow
 from backend.models.source_links import FlowSource
 from backend.schemas.flows import FlowCreate, FlowOut, FlowUpdate
 
@@ -66,7 +66,18 @@ _LIST_SQL = """
             FROM flow_sources fs
             JOIN sources s ON s.id = fs.source_id
             WHERE fs.flow_id = f.id
-        ), '[]'::json) AS sources
+        ), '[]'::json) AS sources,
+        COALESCE((
+            SELECT json_agg(json_build_object(
+                'territory_id', w.territory_id,
+                'territory_name', wt.name,
+                'sequence_no', w.sequence_no,
+                'note', w.note
+            ) ORDER BY w.sequence_no)
+            FROM flow_waypoints w
+            JOIN territories wt ON wt.id = w.territory_id
+            WHERE w.flow_id = f.id
+        ), '[]'::json) AS waypoints
     FROM migration_flows f
     JOIN territories o ON o.id = f.origin_territory_id
     JOIN territories d ON d.id = f.destination_territory_id
@@ -138,6 +149,14 @@ def list_flows_geojson(
             ST_Y(ST_Centroid(o.geom)) AS o_lat,
             ST_X(ST_Centroid(d.geom)) AS d_lon,
             ST_Y(ST_Centroid(d.geom)) AS d_lat,
+            (
+                SELECT json_agg(
+                    json_build_array(ST_X(ST_Centroid(wt.geom)), ST_Y(ST_Centroid(wt.geom)))
+                    ORDER BY w.sequence_no
+                )
+                FROM flow_waypoints w JOIN territories wt ON wt.id = w.territory_id
+                WHERE w.flow_id = f.id AND wt.geom IS NOT NULL
+            ) AS waypoint_coords,
             (SELECT COUNT(*) FROM flow_sources fs WHERE fs.flow_id = f.id) AS source_count
         FROM migration_flows f
         JOIN territories o ON o.id = f.origin_territory_id
@@ -152,12 +171,16 @@ def list_flows_geojson(
 
     features = []
     for r in rows:
+        coords = [[r["o_lon"], r["o_lat"]]]
+        if r["waypoint_coords"]:
+            coords.extend(r["waypoint_coords"])
+        coords.append([r["d_lon"], r["d_lat"]])
         features.append({
             "type": "Feature",
             "id": r["id"],
             "geometry": {
                 "type": "LineString",
-                "coordinates": [[r["o_lon"], r["o_lat"]], [r["d_lon"], r["d_lat"]]],
+                "coordinates": coords,
             },
             "properties": {
                 "id": r["id"],
@@ -191,7 +214,7 @@ def get_flow(flow_id: int, db: Session = Depends(get_db)):
 
 @router.post("", response_model=FlowOut, status_code=201)
 def create_flow(payload: FlowCreate, db: Session = Depends(get_db)):
-    data = payload.model_dump(exclude={"sources"})
+    data = payload.model_dump(exclude={"sources", "waypoints"})
     # Auto-provisional if no sources were attached.
     data["provisional"] = len(payload.sources) == 0
 
@@ -201,6 +224,9 @@ def create_flow(payload: FlowCreate, db: Session = Depends(get_db)):
 
     for s in payload.sources:
         db.add(FlowSource(flow_id=flow.id, source_id=s.source_id, note=s.note))
+    for i, w in enumerate(payload.waypoints):
+        db.add(FlowWaypoint(flow_id=flow.id, sequence_no=i,
+                            territory_id=w.territory_id, note=w.note))
 
     db.commit()
     db.refresh(flow)
@@ -213,9 +239,15 @@ def update_flow(flow_id: int, payload: FlowUpdate, db: Session = Depends(get_db)
     if not flow:
         raise HTTPException(404, "flow not found")
 
-    updates = payload.model_dump(exclude_unset=True, exclude={"sources"})
+    updates = payload.model_dump(exclude_unset=True, exclude={"sources", "waypoints"})
     for k, v in updates.items():
         setattr(flow, k, v)
+
+    if payload.waypoints is not None:
+        db.execute(text("DELETE FROM flow_waypoints WHERE flow_id = :i"), {"i": flow_id})
+        for i, w in enumerate(payload.waypoints):
+            db.add(FlowWaypoint(flow_id=flow_id, sequence_no=i,
+                                territory_id=w.territory_id, note=w.note))
 
     if payload.sources is not None:
         # Replace M2M wholesale on explicit request.

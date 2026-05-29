@@ -25,6 +25,18 @@ class FlowSourceLink(BaseModel):
     note: str | None = None
 
 
+class FlowWaypointIn(BaseModel):
+    territory_id: int
+    note: str | None = None
+
+
+class FlowWaypointOut(BaseModel):
+    territory_id: int
+    territory_name: str | None = None
+    sequence_no: int
+    note: str | None = None
+
+
 class FlowCreate(BaseModel):
     origin_territory_id: int
     destination_territory_id: int
@@ -54,6 +66,7 @@ class FlowCreate(BaseModel):
 
     notes: str | None = None
     sources: list[FlowSourceLink] = Field(default_factory=list)
+    waypoints: list[FlowWaypointIn] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _check_count_consistency(self):
@@ -109,6 +122,7 @@ class FlowUpdate(BaseModel):
     notes: str | None = None
     provisional: bool | None = None
     sources: list[FlowSourceLink] | None = None  # if provided, replaces existing
+    waypoints: list[FlowWaypointIn] | None = None  # if provided, replaces existing
 
 
 class FlowSourceOut(BaseModel):
@@ -147,5 +161,6 @@ class FlowOut(BaseModel):
     provisional: bool
     notes: str | None
     sources: list[FlowSourceOut] = []
+    waypoints: list[FlowWaypointOut] = []
     created_at: datetime
     updated_at: datetime

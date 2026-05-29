@@ -130,6 +130,9 @@ export const FlowEditor: React.FC<{
   const [notes, setNotes] = useState<string>("");
   const [sourceIds, setSourceIds] = useState<number[]>([]);
   const [newSourceOpen, setNewSourceOpen] = useState(false);
+  // Transit waypoints (ordered path hops: Kyiv → Libau → US, Chelyabinsk)
+  const [waypoints, setWaypoints] = useState<{ territory_id: number; name: string }[]>([]);
+  const [wpAddKey, setWpAddKey] = useState(0);
 
   const labelsQ = useTemporalLabels();
   const createFlow = useCreateFlow();
@@ -173,6 +176,10 @@ export const FlowEditor: React.FC<{
     setShareBaseTerrId(f.share_base_territory_id ?? null);
     setNotes(f.notes ?? "");
     setSourceIds(f.sources.map((s) => s.source_id));
+    setWaypoints((f.waypoints ?? []).map((w) => ({
+      territory_id: w.territory_id,
+      name: w.territory_name ?? `#${w.territory_id}`,
+    })));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, flowId, flowQ.data]);
 
@@ -186,7 +193,7 @@ export const FlowEditor: React.FC<{
     setCountMethod("exact"); setCount(null); setCountLower(null); setCountUpper(null);
     setSharePct(null); setShareBaseKind("flow"); setShareBaseFlowId(null);
     setShareBaseTerrId(null); setShareBaseTerrRow(null);
-    setNotes(""); setSourceIds([]);
+    setNotes(""); setSourceIds([]); setWaypoints([]);
   };
 
   /** Resolve the active time inputs into the API triple. */
@@ -274,6 +281,7 @@ export const FlowEditor: React.FC<{
       destination_precision: destPrec,
       notes: notes || null,
       sources: sourceIds.map((id) => ({ source_id: id })),
+      waypoints: waypoints.map((w) => ({ territory_id: w.territory_id })),
     };
     try {
       if (isEditing) {
@@ -432,6 +440,36 @@ export const FlowEditor: React.FC<{
               onChange={setTransport}
               options={TRANSPORT_OPTS}
               getPopupContainer={drawerBodyOrSelf}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="Проміжні точки (перевалки / порти)"
+            help="По черзі: походження → ці точки → прибуття. Напр. Київ → Лібава → США."
+          >
+            {waypoints.map((w, i) => (
+              <div key={`${w.territory_id}-${i}`} className="flex items-center gap-2 mb-1">
+                <span style={{ color: "var(--text-faint)", fontSize: 11 }}>{i + 1}.</span>
+                <span style={{ flex: 1 }}>{w.name}</span>
+                <button
+                  type="button"
+                  style={{ color: "var(--text-faint)" }}
+                  onClick={() => setWaypoints((ws) => ws.filter((_, j) => j !== i))}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <TerritoryPicker
+              key={wpAddKey}
+              value={null}
+              onChange={(id, row) => {
+                if (id != null) {
+                  setWaypoints((ws) => [...ws, { territory_id: id, name: row?.name_local ?? row?.name ?? `#${id}` }]);
+                  setWpAddKey((k) => k + 1);
+                }
+              }}
+              placeholder="+ додати точку…"
             />
           </Form.Item>
 
