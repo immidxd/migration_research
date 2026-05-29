@@ -39,5 +39,15 @@ if [ "$MODE" = "migrate" ]; then
   exit 0
 fi
 
+if [ "$MODE" = "backup" ]; then
+  python -m backend.scripts.db_snapshot dump
+  exit 0
+fi
+
+if [ "$MODE" = "restore" ]; then
+  python -m backend.scripts.db_snapshot restore
+  exit 0
+fi
+
 # Default: launch desktop app
 python main.py
