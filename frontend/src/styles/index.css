@@ -84,3 +84,17 @@ aside::-webkit-scrollbar-thumb:hover { background: var(--accent-soft); }
 }
 /* Hide the popup tip — colouring all four borders made it a solid square. */
 .flow-popup .maplibregl-popup-tip { display: none; }
+
+/* Slider handle — subtle scale-on-hover for polish. */
+.ant-slider-handle::after {
+  transition: transform .15s ease, box-shadow .15s ease !important;
+}
+.ant-slider-handle:hover::after,
+.ant-slider-handle:focus::after,
+.ant-slider-handle-dragging::after {
+  transform: scale(1.6) !important;
+  box-shadow: 0 0 0 6px rgba(224,123,58,0.18) !important;
+}
+.ant-slider:hover .ant-slider-track {
+  background: var(--accent) !important;
+}

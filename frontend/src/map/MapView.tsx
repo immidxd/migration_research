@@ -35,9 +35,9 @@ function curveSegment(a: [number, number], b0: [number, number], steps: number):
   const dx = b[0] - a[0], dy = b[1] - a[1];
   const len = Math.hypot(dx, dy);
   const nx = -dy / (len || 1), ny = dx / (len || 1);
-  // Gentle, capped curvature — strong lifts turned long arcs into wedge-like
-  // blobs at regional zoom.
-  const lift = Math.min(len * 0.1, 5);
+  // Very gentle, capped curvature — anything stronger leaves a triangular
+  // wedge artifact at regional zoom where the curve passes between two ports.
+  const lift = Math.min(len * 0.06, 2.5);
   const mx = (a[0] + b[0]) / 2 + nx * lift;
   const my = (a[1] + b[1]) / 2 + ny * lift;
   const out: [number, number][] = [];
@@ -659,20 +659,8 @@ const MapView: React.FC = () => {
         1200000, 5.5,
       ];
 
-      // Faint underlay glow (thin, low opacity) — just enough to lift arcs off
-      // the basemap without the old fat blur.
-      map.addLayer({
-        id: "flows-glow",
-        type: "line",
-        source: "flows",
-        layout: { "line-cap": "round", "line-join": "round" },
-        paint: {
-          "line-color": VECTOR_COLOR,
-          "line-width": ["*", FLOW_WIDTH, 2.4],
-          "line-blur": 2.5,
-          "line-opacity": 0.12,
-        },
-      });
+      // (No flow glow layer — the bare line is cleaner and avoids the wedge
+      // artifact a wider blurred underlay produced between close ports.)
       map.addLayer({
         id: "flows-line",
         type: "line",

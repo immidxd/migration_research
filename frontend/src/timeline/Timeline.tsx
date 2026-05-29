@@ -67,18 +67,21 @@ const Timeline: React.FC = () => {
       .map((g) => ({ ...g, items: byKind.get(g.kind)! }));
   }, [labelsQ.data]);
 
-  // Live-apply: any slider/input/mode change updates the store immediately, no
-  // "apply" button. Skip the first render so the default "усі періоди" scope
-  // isn't replaced just by mounting the component.
+  // Live-apply with a small debounce — dragging the slider would otherwise
+  // refetch flows/labels on every pixel and feel sluggish. Skip the first
+  // render so the default "усі періоди" scope isn't replaced by mounting.
   const firstRun = useRef(true);
   useEffect(() => {
     if (firstRun.current) { firstRun.current = false; return; }
-    if (mode === "year") setScope({ mode: "year", year });
-    else if (mode === "range") setScope({ mode: "range", yearFrom: range[0], yearTo: range[1] });
-    else if (mode === "label" && labelId != null) {
-      const lbl = labelsQ.data?.find((l) => l.id === labelId);
-      if (lbl) setScope({ mode: "label", labelId, label: lbl });
-    }
+    const t = setTimeout(() => {
+      if (mode === "year") setScope({ mode: "year", year });
+      else if (mode === "range") setScope({ mode: "range", yearFrom: range[0], yearTo: range[1] });
+      else if (mode === "label" && labelId != null) {
+        const lbl = labelsQ.data?.find((l) => l.id === labelId);
+        if (lbl) setScope({ mode: "label", labelId, label: lbl });
+      }
+    }, 200);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, year, range[0], range[1], labelId]);
 
