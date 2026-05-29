@@ -93,8 +93,9 @@ aside::-webkit-scrollbar-thumb:hover { background: var(--accent-soft); }
   box-shadow: none !important;
   transition: transform .15s ease, box-shadow .15s ease !important;
 }
+/* Only hover & active-drag enlarge — NOT :focus, which lingers after a click
+   and would keep the handle big until you click elsewhere. */
 .ant-slider-handle:hover::after,
-.ant-slider-handle:focus::after,
 .ant-slider-handle-dragging::after {
   transform: scale(1.6) !important;
   box-shadow: 0 0 0 6px rgba(224,123,58,0.18) !important;
