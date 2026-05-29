@@ -72,3 +72,19 @@ aside::-webkit-scrollbar-thumb:hover { background: var(--accent-soft); }
 [data-theme="dark"] .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
   filter: invert(1) opacity(0.7);
 }
+
+/* Flow hover popup — dark, matches the app theme (default popup is white). */
+.flow-popup .maplibregl-popup-content {
+  background: var(--bg-panel) !important;
+  color: var(--text-base) !important;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  padding: 8px 11px;
+}
+.flow-popup .maplibregl-popup-tip {
+  border-top-color: var(--bg-panel) !important;
+  border-bottom-color: var(--bg-panel) !important;
+  border-left-color: var(--bg-panel) !important;
+  border-right-color: var(--bg-panel) !important;
+}

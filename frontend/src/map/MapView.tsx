@@ -799,11 +799,11 @@ const MapView: React.FC = () => {
         flowPopup
           .setLngLat(e.lngLat)
           .setHTML(
-            `<div style="font:12px/1.35 system-ui;color:#f5e9d0">
+            `<div style="font:12px/1.35 system-ui">
                <div style="font-weight:600">${p.origin_name} → ${p.destination_name}</div>
-               <div style="opacity:.75">${amount}${period ? " · " + period : ""}</div>
+               <div style="opacity:.75;margin-top:2px">${amount}${period ? " · " + period : ""}</div>
                ${sub}
-               <div style="opacity:.5;margin-top:4px">клік — редагувати</div>
+               <div style="opacity:.5;margin-top:5px">клік — редагувати</div>
              </div>`
           )
           .addTo(map);
