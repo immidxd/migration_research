@@ -106,6 +106,29 @@ class CountMethod(str, enum.Enum):
     UNKNOWN = "unknown"      # no count, or unrecoverable
 
 
+class RelationKind(str, enum.Enum):
+    """How two flows relate, for overlap-aware aggregation.
+
+    Directed edge from_flow → to_flow:
+      CONTAINS  — from_flow contains to_flow (to_flow is a part of from_flow);
+                  the only asymmetric kind. The aggregator subtracts contained
+                  children when summing with their parent.
+      EQUALS    — the two flows describe the same movement (e.g. two sources for
+                  the same claim); keep one when aggregating. Symmetric.
+      DISJOINT  — confirmed non-overlapping; safe to add together. Symmetric.
+      OVERLAPS_UNKNOWN — they overlap but the extent is unknown; the aggregator
+                  surfaces a RANGE instead of a false precise sum. Symmetric.
+
+    Relationships are the USER's analytical declarations (confirmed). The
+    program only suggests candidates; it never stores a relation unconfirmed.
+    """
+
+    CONTAINS = "contains"
+    EQUALS = "equals"
+    DISJOINT = "disjoint"
+    OVERLAPS_UNKNOWN = "overlaps_unknown"
+
+
 class StatKind(str, enum.Enum):
     """Kind of a territorial stock/snapshot fact (territory_stats).
 

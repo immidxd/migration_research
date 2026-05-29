@@ -4,8 +4,22 @@ import { Drawer, Form, Input, InputNumber, Radio, Select, Button, Modal, message
 type TimeMode = "label" | "year" | "range";
 
 import { useCreateFlow, useCreateSource, useFlow, useUpdateFlow } from "../api/flows";
+import {
+  RelationKind,
+  useCreateRelation,
+  useDeleteRelation,
+  useFlowRelations,
+  useRelationCandidates,
+} from "../api/relations";
 import { drawerBodyOrSelf, SourcePicker, TerritoryPicker } from "./pickers";
 import { useTemporalLabels } from "../api/temporal";
+
+const REL_KIND_LABEL: Record<RelationKind, string> = {
+  contains: "⊃ містить / є частиною",
+  equals: "= тотожні",
+  disjoint: "∥ розділені",
+  overlaps_unknown: "≈ перетин невідомий",
+};
 
 const VECTOR_OPTS = [
   { value: "transatlantic", label: "Трансатлантичний" },
@@ -450,6 +464,8 @@ export const FlowEditor: React.FC<{
             />
           </Form.Item>
         </Form>
+
+        {isEditing && flowId != null && <RelationsSection flowId={flowId} />}
       </Drawer>
 
       <NewSourceModal
@@ -461,6 +477,88 @@ export const FlowEditor: React.FC<{
         }}
       />
     </>
+  );
+};
+
+
+const RelationsSection: React.FC<{ flowId: number }> = ({ flowId }) => {
+  const relationsQ = useFlowRelations(flowId);
+  const [showCandidates, setShowCandidates] = useState(false);
+  const candidatesQ = useRelationCandidates(showCandidates ? flowId : null);
+  const createRel = useCreateRelation();
+  const delRel = useDeleteRelation();
+
+  const faint: React.CSSProperties = { color: "var(--text-faint)" };
+  const muted: React.CSSProperties = { color: "var(--text-muted)" };
+
+  return (
+    <div className="mt-4 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
+      <div className="text-xs uppercase tracking-wider mb-2" style={muted}>
+        Звʼязки з іншими потоками
+      </div>
+
+      {(relationsQ.data ?? []).map((r) => (
+        <div key={r.id} className="mb-1.5 text-xs flex items-start justify-between gap-2">
+          <div className="leading-snug">
+            <div style={{ color: "var(--accent)" }}>{REL_KIND_LABEL[r.kind]}</div>
+            <div style={muted}>{r.from_label}</div>
+            <div style={faint}>↳ {r.to_label}</div>
+          </div>
+          <button style={faint} onClick={() => delRel.mutate(r.id)} title="Видалити звʼязок">×</button>
+        </div>
+      ))}
+      {relationsQ.data?.length === 0 && (
+        <div className="text-xs italic mb-1" style={faint}>звʼязків ще немає</div>
+      )}
+
+      {!showCandidates ? (
+        <button
+          type="button"
+          onClick={() => setShowCandidates(true)}
+          className="text-xs hover:underline"
+          style={{ color: "var(--accent)" }}
+        >
+          запропонувати кандидатів
+        </button>
+      ) : (
+        <div className="mt-2">
+          <div className="text-[10px] uppercase tracking-wider mb-1" style={faint}>
+            Кандидати (підтвердь потрібні)
+          </div>
+          {candidatesQ.isLoading && <div className="text-xs" style={faint}>пошук…</div>}
+          {candidatesQ.data?.length === 0 && (
+            <div className="text-xs italic" style={faint}>кандидатів не знайдено</div>
+          )}
+          {(candidatesQ.data ?? []).map((c) => (
+            <div key={c.other_flow_id} className="mb-1.5 text-xs flex items-start justify-between gap-2">
+              <div className="leading-snug">
+                <div>{c.other_label}</div>
+                <div style={faint}>
+                  {c.other_count != null && `${c.other_count.toLocaleString("uk")} ос. · `}
+                  {c.other_period && `${c.other_period} · `}
+                  <span style={{ color: "var(--accent)" }}>{REL_KIND_LABEL[c.kind]}</span>
+                </div>
+                <div style={faint}>{c.reason}</div>
+              </div>
+              <button
+                type="button"
+                className="text-xs px-2 py-0.5 rounded shrink-0"
+                style={{ background: "var(--accent-soft)", color: "var(--text-strong)", border: "1px solid var(--accent)" }}
+                onClick={() =>
+                  createRel.mutate({
+                    from_flow_id: c.from_flow_id,
+                    to_flow_id: c.to_flow_id,
+                    kind: c.kind,
+                  })
+                }
+              >
+                підтвердити
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 
