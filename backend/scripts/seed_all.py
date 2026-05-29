@@ -13,7 +13,7 @@ import logging
 from backend.scripts.seed import (
     ah_crownlands, cities, countries, gubernias, hawaii, hierarchy,
     intra_imperial, manchuria, ports, ri_1897, subdivisions, temporal_labels,
-    treadgold_regions, umbrella_regions,
+    treadgold_regions, umbrella_regions, zakarpattia,
 )
 
 
@@ -32,6 +32,7 @@ SEEDERS = {
     "hawaii": hawaii.run,                 # worked example: time-varying territory status
     "hierarchy": hierarchy.run,           # populate territories.parent_id (place tree)
     "ah_crownlands": ah_crownlands.run,   # real Galicia/Bukovina boundaries (HistoGIS 1910)
+    "zakarpattia": zakarpattia.run,       # Transcarpathia = union of Hungarian komitats (HistoGIS 1835)
 }
 
 
