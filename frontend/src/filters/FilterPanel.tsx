@@ -93,6 +93,7 @@ const FilterPanel: React.FC = () => {
     selectedTerritoryId, selectTerritory,
   } = useFilters();
 
+  const setStatsReportOpen = useFilters((s) => s.setStatsReportOpen);
   const regionsQ = useTerritoryList(["region"]);
   const portsQ = useTerritoryList(["port", "border_crossing"]);
 
@@ -147,6 +148,20 @@ const FilterPanel: React.FC = () => {
           />
         ))}
       </Section>
+
+      <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border-soft)" }}>
+        <button
+          onClick={() => setStatsReportOpen(true)}
+          className="w-full px-2 py-1.5 text-sm rounded"
+          style={{
+            background: "var(--accent-soft)",
+            color: "var(--text-strong)",
+            border: "1px solid var(--accent)",
+          }}
+        >
+          📊 Статистика напряму
+        </button>
+      </div>
 
       <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border-soft)" }}>
         <div
