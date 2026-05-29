@@ -98,3 +98,7 @@ aside::-webkit-scrollbar-thumb:hover { background: var(--accent-soft); }
 .ant-slider:hover .ant-slider-track {
   background: var(--accent) !important;
 }
+
+/* The "+ add flow" floating button sits at top-right; push the MapLibre
+   navigation control down so it doesn't overlap. */
+.maplibregl-ctrl-top-right { margin-top: 60px !important; }
