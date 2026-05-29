@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 // URL (set via `setWorkerUrl` below) instead of an inlined blob URL.
 // pywebview's WKWebView blocks blob: workers, which caused every GeoJSON
 // tile to fail with "Can't find variable: a" and left the map blank.
-import maplibregl, { Map, MapGeoJSONFeature } from "maplibre-gl/dist/maplibre-gl-csp";
+import maplibregl, { Map } from "maplibre-gl/dist/maplibre-gl-csp";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { useFlowsGeoJSON } from "../api/flows";
@@ -765,12 +765,21 @@ const MapView: React.FC = () => {
         map.on("mouseenter", lyr, () => { map.getCanvas().style.cursor = "pointer"; });
         map.on("mouseleave", lyr, () => { map.getCanvas().style.cursor = ""; });
       }
-      for (const lyr of ["regions-fill", "ports-circle", "countries-fill", "subdivisions-fill", "settlements-circle"]) {
-        map.on("click", lyr, (e) => {
-          const f = e.features?.[0] as MapGeoJSONFeature | undefined;
-          if (f?.properties?.id != null) selectTerritory(Number(f.properties.id));
-        });
-      }
+      // Single click handler with priority: a flow under the cursor wins (opens
+      // the editor) and must NOT also select the territory beneath it — that
+      // double-fire was what jerked the map to the flow's destination region.
+      const TERR_CLICK_LAYERS = ["regions-fill", "ports-circle", "countries-fill", "subdivisions-fill", "settlements-circle"];
+      map.on("click", (e) => {
+        const onFlow = map.queryRenderedFeatures(e.point, { layers: ["flows-line"] });
+        if (onFlow.length) {
+          const id = onFlow[0].properties?.id;
+          if (id != null) openFlowEditor(Number(id));
+          return;
+        }
+        const onTerr = map.queryRenderedFeatures(e.point, { layers: TERR_CLICK_LAYERS });
+        const id = onTerr[0]?.properties?.id;
+        if (id != null) selectTerritory(Number(id));
+      });
 
       // --- Flow hover: highlight the hovered flow + its sub-flows, show a
       // summary popup, and open the editor on click.
@@ -816,10 +825,6 @@ const MapView: React.FC = () => {
       };
       map.on("mousemove", "flows-line", onFlowMove);
       map.on("mouseleave", "flows-line", onFlowLeave);
-      map.on("click", "flows-line", (e) => {
-        const f = e.features?.[0];
-        if (f?.properties?.id != null) openFlowEditor(Number(f.properties.id));
-      });
 
       // Force a resize after one tick — pywebview sometimes mounts the
       // container with no width on first paint.

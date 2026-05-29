@@ -82,9 +82,5 @@ aside::-webkit-scrollbar-thumb:hover { background: var(--accent-soft); }
   box-shadow: 0 10px 30px rgba(0,0,0,0.5);
   padding: 8px 11px;
 }
-.flow-popup .maplibregl-popup-tip {
-  border-top-color: var(--bg-panel) !important;
-  border-bottom-color: var(--bg-panel) !important;
-  border-left-color: var(--bg-panel) !important;
-  border-right-color: var(--bg-panel) !important;
-}
+/* Hide the popup tip — colouring all four borders made it a solid square. */
+.flow-popup .maplibregl-popup-tip { display: none; }
