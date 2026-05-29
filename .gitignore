@@ -33,9 +33,12 @@ data/basemaps/*
 !data/basemaps/.gitkeep
 !data/territories/.gitkeep
 !data/fixtures/.gitkeep
+# DB snapshot lives in the project folder for portability (copy the folder to
+# carry your facts), but is kept OUT of git — it's a moving binary, not source.
+data/fixtures/*.dump
 # data/territories/raw/ IS tracked: it holds the academic source files
-# (RiStat 1897 GeoPackages) so the project is reproducible from a clean
-# clone. License CC0 with attribution.
+# (RiStat 1897 GeoPackages; CHGIS V6 1911 provinces; Natural Earth) so the
+# project is reproducible from a clean clone. All are CC0 / public domain.
 
 # Alembic local cache
 backend/migrations/__pycache__/

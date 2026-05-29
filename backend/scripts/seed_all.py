@@ -11,8 +11,8 @@ import argparse
 import logging
 
 from backend.scripts.seed import (
-    countries, gubernias, intra_imperial, ports, ri_1897,
-    temporal_labels, treadgold_regions, umbrella_regions,
+    cities, countries, gubernias, hawaii, intra_imperial, manchuria, ports,
+    ri_1897, subdivisions, temporal_labels, treadgold_regions, umbrella_regions,
 )
 
 
@@ -25,6 +25,10 @@ SEEDERS = {
     "intra_imperial": intra_imperial.run,
     "ports": ports.run,
     "countries": countries.run,
+    "subdivisions": subdivisions.run,     # US states + Canadian provinces (NE admin_1)
+    "cities": cities.run,                 # key North American diaspora cities
+    "manchuria": manchuria.run,           # CHGIS 1911 Three Eastern Provinces (local file)
+    "hawaii": hawaii.run,                 # worked example: time-varying territory status
 }
 
 
