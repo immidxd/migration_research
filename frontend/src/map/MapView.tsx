@@ -125,6 +125,9 @@ type SourceSnapshot = {
   subdivisions: GeoJSON.FeatureCollection | undefined;
   subdivisionLabels: GeoJSON.FeatureCollection | undefined;
   settlements: GeoJSON.FeatureCollection | undefined;
+  gubernias: GeoJSON.FeatureCollection | undefined;
+  guberniaLabels: GeoJSON.FeatureCollection | undefined;
+  uezds: GeoJSON.FeatureCollection | undefined;
   flows: any;
   empires: Set<string>;
   vectors: Set<string>;
@@ -180,6 +183,9 @@ function pushAllData(
   const subFC = empiresFilter(s.subdivisions);
   const subLFC = empiresFilter(s.subdivisionLabels);
   const setFC = empiresFilter(s.settlements);
+  const gubFC = empiresFilter(s.gubernias);
+  const gubLFC = empiresFilter(s.guberniaLabels);
+  const uezdFC = empiresFilter(s.uezds);
 
   const flowFC = s.flows
     ? {
@@ -203,6 +209,9 @@ function pushAllData(
   (map.getSource("subdivisions") as maplibregl.GeoJSONSource | undefined)?.setData(subFC);
   (map.getSource("subdivisions-labels") as maplibregl.GeoJSONSource | undefined)?.setData(subLFC);
   (map.getSource("settlements") as maplibregl.GeoJSONSource | undefined)?.setData(setFC);
+  (map.getSource("gubernias") as maplibregl.GeoJSONSource | undefined)?.setData(gubFC);
+  (map.getSource("gubernias-labels") as maplibregl.GeoJSONSource | undefined)?.setData(gubLFC);
+  (map.getSource("uezds") as maplibregl.GeoJSONSource | undefined)?.setData(uezdFC);
   (map.getSource("flows") as maplibregl.GeoJSONSource | undefined)?.setData(flowFC);
 
   setCounts({
@@ -238,6 +247,11 @@ const MapView: React.FC = () => {
   const subdivisionsQ = useTerritoryLayer(["subdivision"]);
   const subdivisionLabelsQ = useTerritoryLabels(["subdivision"], labelYear);
   const settlementsQ = useTerritoryLayer(["settlement"]);
+  // Gubernias: real RiStat borders, the main unit migrants are recorded from.
+  // Uezds are heavier (824 polygons) so only fetched when their toggle is on.
+  const guberniasQ = useTerritoryLayer(["gubernia"]);
+  const guberniaLabelsQ = useTerritoryLabels(["gubernia"]);
+  const uezdsQ = useTerritoryLayer(kinds.has("uezd") ? ["uezd"] : []);
   // Filter flows by the active temporal scope's canonical year range — works
   // for year / range / label modes alike (null when no scope is set).
   const scopeR = scopeRange(scope);
@@ -258,6 +272,9 @@ const MapView: React.FC = () => {
     subdivisions: undefined as GeoJSON.FeatureCollection | undefined,
     subdivisionLabels: undefined as GeoJSON.FeatureCollection | undefined,
     settlements: undefined as GeoJSON.FeatureCollection | undefined,
+    gubernias: undefined as GeoJSON.FeatureCollection | undefined,
+    guberniaLabels: undefined as GeoJSON.FeatureCollection | undefined,
+    uezds: undefined as GeoJSON.FeatureCollection | undefined,
     flows: undefined as any,
     empires,
     vectors: vectorsState,
@@ -271,6 +288,9 @@ const MapView: React.FC = () => {
     subdivisions: subdivisionsQ.data,
     subdivisionLabels: subdivisionLabelsQ.data,
     settlements: settlementsQ.data,
+    gubernias: guberniasQ.data,
+    guberniaLabels: guberniaLabelsQ.data,
+    uezds: uezdsQ.data,
     flows: flowsQ.data,
     empires,
     vectors: vectorsState,
@@ -313,7 +333,8 @@ const MapView: React.FC = () => {
 
       for (const id of [
         "countries", "regions", "regions-labels", "ports",
-        "subdivisions", "subdivisions-labels", "settlements", "flows",
+        "subdivisions", "subdivisions-labels", "settlements",
+        "gubernias", "gubernias-labels", "uezds", "flows",
       ] as const) {
         map.addSource(id, { type: "geojson", data: EMPTY_FC });
       }
@@ -493,6 +514,61 @@ const MapView: React.FC = () => {
           "text-halo-color": C.halo,
           "text-halo-width": 1.4,
         },
+      });
+
+      // Uezds (districts) — finest level, faint borders, only at deep zoom.
+      map.addLayer({
+        id: "uezds-line",
+        type: "line",
+        source: "uezds",
+        minzoom: 6.5,
+        paint: {
+          "line-color": "#9a8c6e",
+          "line-width": 0.5,
+          "line-opacity": ["interpolate", ["linear"], ["zoom"], 6.5, 0, 8, 0.5],
+        },
+      });
+      map.addLayer({
+        id: "uezds-label",
+        type: "symbol",
+        source: "uezds",
+        minzoom: 8,
+        layout: {
+          "text-field": ["coalesce", ["get", "name_local"], ["get", "name"]],
+          "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+          "text-size": 9,
+          "text-allow-overlap": false,
+          "text-padding": 4,
+        },
+        paint: { "text-color": C.text, "text-halo-color": C.halo, "text-halo-width": 1.1, "text-opacity": 0.8 },
+      });
+
+      // Gubernias — the main working unit: real RiStat borders. Drawn above
+      // region fills so they subdivide the macro-regions; appear from mid zoom.
+      map.addLayer({
+        id: "gubernias-line",
+        type: "line",
+        source: "gubernias",
+        minzoom: 4,
+        paint: {
+          "line-color": "#cdb98c",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.5, 7, 1.4],
+          "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0.45, 6, 0.85],
+        },
+      });
+      map.addLayer({
+        id: "gubernias-label",
+        type: "symbol",
+        source: "gubernias-labels",
+        minzoom: 5.5,
+        layout: {
+          "text-field": ["coalesce", ["get", "name_local"], ["get", "name"]],
+          "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+          "text-size": 11,
+          "text-allow-overlap": false,
+          "text-padding": 6,
+        },
+        paint: { "text-color": C.text, "text-halo-color": C.halo, "text-halo-width": 1.3 },
       });
 
       // Subdivisions (US states / Canadian provinces) — soft fill + outline,
@@ -719,7 +795,7 @@ const MapView: React.FC = () => {
     if (!map || !loadedRef.current) return;
     pushAllData(map, stateRef.current, setRenderedCounts);
 
-  }, [countriesQ.data, regionsQ.data, portsQ.data, subdivisionsQ.data, subdivisionLabelsQ.data, settlementsQ.data, flowsQ.data, empires, scope, vectorsState]);
+  }, [countriesQ.data, regionsQ.data, portsQ.data, subdivisionsQ.data, subdivisionLabelsQ.data, settlementsQ.data, guberniasQ.data, guberniaLabelsQ.data, uezdsQ.data, flowsQ.data, empires, scope, vectorsState]);
 
 
   // --- visibility toggles ---
@@ -731,6 +807,8 @@ const MapView: React.FC = () => {
     const showPort = kinds.has("port") || kinds.has("border_crossing");
     const showSubdivision = kinds.has("subdivision");
     const showSettlement = kinds.has("settlement");
+    const showGubernia = kinds.has("gubernia");
+    const showUezd = kinds.has("uezd");
     const toggle: Array<[string, boolean]> = [
       ["countries-fill", showCountry],
       ["countries-line", showCountry],
@@ -744,6 +822,10 @@ const MapView: React.FC = () => {
       ["subdivisions-label", showSubdivision],
       ["settlements-circle", showSettlement],
       ["settlements-label", showSettlement],
+      ["gubernias-line", showGubernia],
+      ["gubernias-label", showGubernia],
+      ["uezds-line", showUezd],
+      ["uezds-label", showUezd],
     ];
     for (const [id, on] of toggle) {
       if (map.getLayer(id)) {

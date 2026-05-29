@@ -97,7 +97,7 @@ const ALL_VECTORS: MigrationVector[] = [
 ];
 
 export const useFilters = create<FilterState>((set) => ({
-  kinds: new Set<TerritoryKind>(["country", "region", "port", "border_crossing"]),
+  kinds: new Set<TerritoryKind>(["country", "region", "gubernia", "port", "border_crossing"]),
   empires: new Set<Empire>(["russian_empire", "austro_hungarian", "other"]),
   vectors: new Set<MigrationVector>(ALL_VECTORS),
   selectedTerritoryId: null,
