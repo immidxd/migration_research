@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Slider, Select } from "antd";
 
 import { useTemporalLabels } from "../api/temporal";
@@ -67,14 +67,20 @@ const Timeline: React.FC = () => {
       .map((g) => ({ ...g, items: byKind.get(g.kind)! }));
   }, [labelsQ.data]);
 
-  const apply = () => {
+  // Live-apply: any slider/input/mode change updates the store immediately, no
+  // "apply" button. Skip the first render so the default "усі періоди" scope
+  // isn't replaced just by mounting the component.
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (firstRun.current) { firstRun.current = false; return; }
     if (mode === "year") setScope({ mode: "year", year });
     else if (mode === "range") setScope({ mode: "range", yearFrom: range[0], yearTo: range[1] });
     else if (mode === "label" && labelId != null) {
       const lbl = labelsQ.data?.find((l) => l.id === labelId);
       if (lbl) setScope({ mode: "label", labelId, label: lbl });
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, year, range[0], range[1], labelId]);
 
   const reset = () => setScope({ mode: "none" });
 
@@ -122,18 +128,7 @@ const Timeline: React.FC = () => {
           <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>обрано:</div>
           <div className="text-sm font-medium leading-tight">{scopeDescribe(scope)}</div>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={apply}
-            className="flex-1 px-2 py-1 text-xs rounded"
-            style={{
-              background: "var(--accent-soft)",
-              color: "var(--text-strong)",
-              border: "1px solid var(--accent)",
-            }}
-          >
-            застосувати
-          </button>
+        <div className="flex">
           <button
             onClick={reset}
             className="px-2 py-1 text-xs rounded"

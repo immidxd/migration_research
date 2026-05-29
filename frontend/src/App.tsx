@@ -47,7 +47,7 @@ const App: React.FC = () => {
           </button>
         </div>
         <div
-          className="h-[110px]"
+          className="h-[140px]"
           style={{ background: "var(--bg-panel)", borderTop: "1px solid var(--border)" }}
         >
           <Timeline />
