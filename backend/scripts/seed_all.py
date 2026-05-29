@@ -11,10 +11,10 @@ import argparse
 import logging
 
 from backend.scripts.seed import (
-    ah_crownlands, cities, countries, fix_ukr_gubernia_geom, gubernias, hawaii,
-    hierarchy, intra_imperial, manchuria, ports, ri_1897, ristat_en_aliases,
-    stitch_ah_ru_frontier, subdivisions, temporal_labels, treadgold_regions,
-    ukr_aliases, umbrella_regions, zakarpattia,
+    ah_crownlands, cities, clip_to_coast, countries, fix_ukr_gubernia_geom,
+    gubernias, hawaii, hierarchy, intra_imperial, manchuria, ports, ri_1897,
+    ristat_en_aliases, stitch_ah_ru_frontier, subdivisions, temporal_labels,
+    treadgold_regions, ukr_aliases, umbrella_regions, zakarpattia,
 )
 
 
@@ -38,6 +38,7 @@ SEEDERS = {
     "ukr_aliases": ukr_aliases.run,       # UK/EN aliases for Ukrainian gubernias (multilingual search)
     "ristat_en_aliases": ristat_en_aliases.run,  # English aliases for ALL RiStat units (from notes)
     "stitch_frontier": stitch_ah_ru_frontier.run,  # snap AH↔RU seam + clean stale provenance
+    "clip_to_coast": clip_to_coast.run,   # clip land polygons to NE 1:10m coastline (no sea-bleed)
 }
 
 
