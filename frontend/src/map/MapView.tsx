@@ -234,6 +234,8 @@ const MapView: React.FC = () => {
   const selectedId = useFilters((s) => s.selectedTerritoryId);
   const selectTerritory = useFilters((s) => s.selectTerritory);
   const openFlowEditor = useFilters((s) => s.openFlowEditor);
+  const hoveredFlowId = useFilters((s) => s.hoveredFlowId);
+  const setHoveredFlowId = useFilters((s) => s.setHoveredFlowId);
   const scope = useFilters((s) => s.scope);
   const themeMode = useFilters((s) => s.theme);
   const vectorsState = useFilters((s) => s.vectors);
@@ -780,19 +782,16 @@ const MapView: React.FC = () => {
         if (!f) return;
         map.getCanvas().style.cursor = "pointer";
         const p: any = f.properties || {};
-        let kids: number[] = [];
-        try {
-          kids = typeof p.child_ids === "string" ? JSON.parse(p.child_ids) : (p.child_ids || []);
-        } catch { kids = []; }
-        const ids = [Number(p.id), ...kids.map(Number)];
-        const filt = ["in", ["get", "id"], ["literal", ids]] as any;
-        map.setFilter("flows-hover", filt);
-        map.setFilter("flows-arrow", filt);
+        // Drive highlight via the shared store; the effect below sets the
+        // hover/arrow filters (same code path used by list-row hover).
+        setHoveredFlowId(Number(p.id));
         const amount = p.count != null ? `${fmtNum(p.count)} осіб`
           : p.count_lower != null ? `${fmtNum(p.count_lower)}–${fmtNum(p.count_upper)} осіб`
           : "кількість невідома";
         const period = p.temporal_label || (p.date_from ? `${p.date_from}→${p.date_to}` : "");
-        const sub = ids.length > 1 ? `<div style="opacity:.6;margin-top:3px">+ ${ids.length - 1} підпотік(ів)</div>` : "";
+        let kids: number[] = [];
+        try { kids = typeof p.child_ids === "string" ? JSON.parse(p.child_ids) : (p.child_ids || []); } catch {}
+        const sub = kids.length ? `<div style="opacity:.6;margin-top:3px">+ ${kids.length} підпотік(ів)</div>` : "";
         flowPopup
           .setLngLat(e.lngLat)
           .setHTML(
@@ -807,8 +806,7 @@ const MapView: React.FC = () => {
       };
       const onFlowLeave = () => {
         map.getCanvas().style.cursor = "";
-        map.setFilter("flows-hover", ["==", ["get", "id"], -1] as any);
-        map.setFilter("flows-arrow", ["==", ["get", "id"], -1] as any);
+        setHoveredFlowId(null);
         flowPopup.remove();
       };
       map.on("mousemove", "flows-line", onFlowMove);
@@ -850,6 +848,27 @@ const MapView: React.FC = () => {
     pushAllData(map, stateRef.current, setRenderedCounts);
 
   }, [countriesQ.data, regionsQ.data, portsQ.data, subdivisionsQ.data, subdivisionLabelsQ.data, settlementsQ.data, guberniasQ.data, guberniaLabelsQ.data, uezdsQ.data, flowsQ.data, empires, scope, vectorsState]);
+
+  // Highlight a flow (+ its sub-flows) whenever the shared `hoveredFlowId`
+  // changes — works for map hover AND row hover in the flows drawer.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loadedRef.current) return;
+    if (hoveredFlowId == null) {
+      const none = ["==", ["get", "id"], -1] as any;
+      if (map.getLayer("flows-hover")) map.setFilter("flows-hover", none);
+      if (map.getLayer("flows-arrow")) map.setFilter("flows-arrow", none);
+      return;
+    }
+    const feat = flowsQ.data?.features.find((f: any) => f.properties?.id === hoveredFlowId);
+    const raw = feat?.properties?.child_ids as any;
+    let kids: number[] = [];
+    try { kids = typeof raw === "string" ? JSON.parse(raw) : (raw || []); } catch {}
+    const ids = [hoveredFlowId, ...kids.map(Number)];
+    const filt = ["in", ["get", "id"], ["literal", ids]] as any;
+    if (map.getLayer("flows-hover")) map.setFilter("flows-hover", filt);
+    if (map.getLayer("flows-arrow")) map.setFilter("flows-arrow", filt);
+  }, [hoveredFlowId, flowsQ.data]);
 
 
   // --- visibility toggles ---

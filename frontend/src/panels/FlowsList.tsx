@@ -7,6 +7,7 @@ import { scopeRange, useFilters } from "../store";
 export const FlowsList: React.FC = () => {
   const scope = useFilters((s) => s.scope);
   const openFlowEditor = useFilters((s) => s.openFlowEditor);
+  const setHoveredFlowId = useFilters((s) => s.setHoveredFlowId);
   // Narrow the flows list by the active temporal scope's year range
   // (year / range / label all resolve to a [from, to] pair).
   const r = scopeRange(scope);
@@ -32,6 +33,8 @@ export const FlowsList: React.FC = () => {
           key={f.id}
           className="px-4 py-2 text-xs"
           style={{ borderBottom: "1px solid var(--border-soft)" }}
+          onMouseEnter={() => setHoveredFlowId(f.id)}
+          onMouseLeave={() => setHoveredFlowId(null)}
         >
           <div className="flex items-start justify-between gap-2">
             <div className="leading-tight">

@@ -63,6 +63,7 @@ const ClassifiedView: React.FC = () => {
   const [vectors, setVectors] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const openFlowEditor = useFilters((s) => s.openFlowEditor);
+  const setHoveredFlowId = useFilters((s) => s.setHoveredFlowId);
   const del = useDeleteFlow();
 
   // Server-side narrow by year/vector; client-side refine by free-text search.
@@ -156,6 +157,8 @@ const ClassifiedView: React.FC = () => {
                     key={f.id}
                     className="px-3 py-2 text-xs flex items-start justify-between gap-2"
                     style={{ borderTop: "1px solid var(--border-soft)" }}
+                    onMouseEnter={() => setHoveredFlowId(f.id)}
+                    onMouseLeave={() => setHoveredFlowId(null)}
                   >
                     <div className="leading-tight">
                       <div style={{ color: "var(--text-base)" }}>

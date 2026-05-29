@@ -73,6 +73,9 @@ interface FilterState {
   statsReportOpen: boolean;
   // Flows management drawer.
   flowsDrawerOpen: boolean;
+  // Cross-pane flow highlight: any UI can set this and the map will light up
+  // the matching flow (+ its sub-flows) without that UI knowing about layers.
+  hoveredFlowId: number | null;
 
   toggleKind: (k: TerritoryKind) => void;
   toggleEmpire: (e: Empire) => void;
@@ -84,6 +87,7 @@ interface FilterState {
   closeFlowEditor: () => void;
   setStatsReportOpen: (open: boolean) => void;
   setFlowsDrawerOpen: (open: boolean) => void;
+  setHoveredFlowId: (id: number | null) => void;
 }
 
 const initialTheme: ThemeMode = (() => {
@@ -110,6 +114,7 @@ export const useFilters = create<FilterState>((set) => ({
   editingFlowId: null,
   statsReportOpen: false,
   flowsDrawerOpen: false,
+  hoveredFlowId: null,
 
   toggleKind: (k) => set((s) => {
     const next = new Set(s.kinds);
@@ -137,6 +142,7 @@ export const useFilters = create<FilterState>((set) => ({
   closeFlowEditor: () => set({ flowEditorOpen: false, editingFlowId: null }),
   setStatsReportOpen: (open) => set({ statsReportOpen: open }),
   setFlowsDrawerOpen: (open) => set({ flowsDrawerOpen: open }),
+  setHoveredFlowId: (id) => set({ hoveredFlowId: id }),
 }));
 
 // Apply initial theme attribute synchronously so first paint matches.
