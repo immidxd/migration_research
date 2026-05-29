@@ -1,20 +1,31 @@
 """Stitch the Austro-Hungarian regions onto their neighbours so the cross-source
 seam (HistoGIS AH vs RiStat RU) stops showing gaps/overlaps along the frontier.
 
-The Dniester/Zbruch frontier was digitised differently by each dataset, leaving
-slivers. ST_Snap pulls the AH region's frontier vertices onto the neighbour's
-edge within a small tolerance (~2 km) — verified to preserve area (±0.2%) and
-validity, with zero resulting overlap.
+The Dniester/Zbruch frontier was digitised differently by each dataset (different
+meander detail / vertex density), so ST_Snap couldn't reconcile the two lines.
+Instead we make the RU side AUTHORITATIVE and force the AH region to end exactly
+on it, with no gap and no overlap:
 
-Order matters: Galicia & Bukovina snap to the RU gubernia union (authoritative
-for the imperial frontier); Zakarpattia then snaps to the already-fixed Galicia
-(their seam is AH-internal, different HistoGIS sources).
+    seam = ST_Buffer(AH, tol) ∩ ST_Buffer(REF, tol)   -- band straddling the frontier
+    AH_new = ST_Difference(ST_Union(AH, seam), REF)
+
+  - the seam band exists ONLY where AH and REF are within ~tol of each other
+    (i.e. along their shared frontier), so AH grows only there — NOT around the
+    whole of RU;
+  - ST_Union(AH, seam) fills any gap up to/past REF; ST_Difference(…, REF) then
+    trims back to exactly REF's boundary → no gap, no overlap.
+AH's far borders (with Poland / Romania / Hungary) are untouched (the buffers
+don't intersect there).
+
+References (adjacent RU units only, to keep it cheap and local):
+  Galicia  → Podolia ∪ Volhynia
+  Bukovina → Podolia ∪ Bessarabia
+  Zakarpattia → the now-fixed Galicia (AH-internal seam, different sources)
 
 Also cleans stale provenance: the AH regions kept the old "approximate hull"
 note and manual-seed source even though their geometry is now real HistoGIS.
 
-Run after ah_crownlands + zakarpattia. Idempotent (snapping an already-snapped
-geometry is a near no-op).
+Run after ah_crownlands + zakarpattia. Idempotent.
 """
 from __future__ import annotations
 
@@ -26,42 +37,52 @@ from backend.models import SessionLocal
 
 logger = logging.getLogger("migrations.seed")
 
-TOL = 0.02  # ~2.2 km at this latitude
+TOL = 0.05  # ~5 km — wider than the worst digitisation offset along the river
 
-RU_UNION = (
-    "SELECT ST_Union(geom) FROM territories "
-    "WHERE kind='gubernia' AND empire='russian_empire' AND geom IS NOT NULL"
-)
+# AH region code -> SQL selecting the authoritative reference geometry it abuts
+REFERENCES = {
+    "ua-region-halychyna": (
+        "SELECT ST_Union(geom) FROM territories "
+        "WHERE code IN ('ru-gub-podilska','ru-gub-volyn') AND geom IS NOT NULL"
+    ),
+    "ua-region-bukovyna": (
+        "SELECT ST_Union(geom) FROM territories "
+        "WHERE code IN ('ru-gub-podilska','ru-gub-bessarabia') AND geom IS NOT NULL"
+    ),
+    "ua-region-zakarpattia": (
+        "SELECT geom FROM territories WHERE code='ua-region-halychyna'"
+    ),
+}
 
 
 def run() -> None:
     db = SessionLocal()
     try:
-        # 1) snap Galicia & Bukovina to the Russian gubernia frontier
-        for code in ("ua-region-halychyna", "ua-region-bukovyna"):
+        # Order: Galicia & Bukovina first (abut RU), then Zakarpattia (abuts the
+        # now-fixed Galicia).
+        for code in ("ua-region-halychyna", "ua-region-bukovyna", "ua-region-zakarpattia"):
+            ref = REFERENCES[code]
             db.execute(
                 text(f"""
-                    UPDATE territories
-                    SET geom = ST_Multi(ST_MakeValid(ST_Snap(geom, ({RU_UNION}), :tol)))
-                    WHERE code = :code AND geom IS NOT NULL
+                    UPDATE territories t
+                    SET geom = ST_Multi(ST_MakeValid(
+                        ST_Difference(
+                            ST_Union(
+                                t.geom,
+                                ST_Intersection(
+                                    ST_Buffer(t.geom, :tol),
+                                    ST_Buffer(ref.g, :tol)
+                                )
+                            ),
+                            ref.g
+                        )
+                    ))
+                    FROM (SELECT ({ref}) AS g) ref
+                    WHERE t.code = :code AND t.geom IS NOT NULL AND ref.g IS NOT NULL
                 """),
                 {"tol": TOL, "code": code},
             )
-            logger.info("snapped %s to RU frontier", code)
-
-        # 2) snap Zakarpattia to the now-fixed Galicia
-        db.execute(
-            text("""
-                UPDATE territories
-                SET geom = ST_Multi(ST_MakeValid(ST_Snap(
-                    geom,
-                    (SELECT geom FROM territories WHERE code='ua-region-halychyna'),
-                    :tol)))
-                WHERE code = 'ua-region-zakarpattia' AND geom IS NOT NULL
-            """),
-            {"tol": TOL},
-        )
-        logger.info("snapped ua-region-zakarpattia to Galicia")
+            logger.info("conformed %s to its RU/AH reference boundary", code)
 
         # 3) clean stale provenance: drop the old "approximate hull" manual
         #    source + note now that geometry is real.
