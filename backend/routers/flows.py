@@ -51,6 +51,8 @@ _LIST_SQL = """
         tl.label AS temporal_label,
         f.date_from, f.date_to, f.date_precision,
         f.count, f.count_lower, f.count_upper, f.count_method,
+        f.share_pct, f.share_pct_lower, f.share_pct_upper,
+        f.share_base_kind, f.share_base_flow_id, f.share_base_territory_id,
         f.vector, f.transport_mode,
         f.origin_precision, f.destination_precision,
         f.provisional, f.notes,

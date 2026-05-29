@@ -103,7 +103,21 @@ class CountMethod(str, enum.Enum):
     EXACT = "exact"          # source gives a single firm number
     ESTIMATE = "estimate"    # source or scholar gives an estimate
     RANGE = "range"          # only a lower/upper range is known
+    SHARE = "share"          # a percentage of an explicit base (see ShareBaseKind)
     UNKNOWN = "unknown"      # no count, or unrecoverable
+
+
+class ShareBaseKind(str, enum.Enum):
+    """What a SHARE-method count is a percentage OF.
+
+    A share with no declared base is meaningless, so the base is mandatory when
+    count_method=share. The resolver multiplies the percentage by the resolved
+    base magnitude to get an absolute figure.
+    """
+
+    FLOW = "flow"                       # % of another flow's count
+    POPULATION = "population"           # % of a territory's population (a stat)
+    MIGRATION_AGGREGATE = "migration_aggregate"  # % of a defined aggregate (future)
 
 
 class RelationKind(str, enum.Enum):

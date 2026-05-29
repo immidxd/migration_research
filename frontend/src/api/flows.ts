@@ -21,7 +21,13 @@ export interface Flow {
   count: number | null;
   count_lower: number | null;
   count_upper: number | null;
-  count_method: "exact" | "estimate" | "range" | "unknown";
+  count_method: "exact" | "estimate" | "range" | "share" | "unknown";
+  share_pct: number | null;
+  share_pct_lower: number | null;
+  share_pct_upper: number | null;
+  share_base_kind: "flow" | "population" | "migration_aggregate" | null;
+  share_base_flow_id: number | null;
+  share_base_territory_id: number | null;
   vector: string;
   transport_mode: string;
   origin_precision: string;
@@ -44,6 +50,12 @@ export interface FlowCreatePayload {
   count_lower?: number | null;
   count_upper?: number | null;
   count_method?: string;
+  share_pct?: number | null;
+  share_pct_lower?: number | null;
+  share_pct_upper?: number | null;
+  share_base_kind?: string | null;
+  share_base_flow_id?: number | null;
+  share_base_territory_id?: number | null;
   vector: string;
   transport_mode?: string;
   origin_precision: string;

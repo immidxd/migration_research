@@ -39,6 +39,8 @@ _MATCH_SQL = """
     )
     SELECT
         f.id, f.count, f.count_lower, f.count_upper, f.count_method, f.vector,
+        f.share_pct, f.share_pct_lower, f.share_pct_upper,
+        f.share_base_kind, f.share_base_flow_id, f.share_base_territory_id,
         o.name AS origin_name, d.name AS destination_name,
         EXTRACT(YEAR FROM f.date_from)::int AS yf,
         EXTRACT(YEAR FROM f.date_to)::int AS yt
@@ -52,8 +54,8 @@ _MATCH_SQL = """
 """
 
 
-def _effective(row: dict[str, Any]) -> tuple[float, float, float] | None:
-    """(point, low, high) magnitude of a flow, or None if unknown."""
+def _absolute(row: dict[str, Any]) -> tuple[float, float, float] | None:
+    """(point, low, high) of an ABSOLUTE-count flow, or None."""
     if row["count"] is not None:
         c = float(row["count"])
         return (c, c, c)
@@ -61,6 +63,46 @@ def _effective(row: dict[str, Any]) -> tuple[float, float, float] | None:
         lo, hi = float(row["count_lower"]), float(row["count_upper"])
         return ((lo + hi) / 2, lo, hi)
     return None
+
+
+def _resolve_base_flow_points(db, flow_ids: set[int]) -> dict[int, float]:
+    """Point magnitude of base flows (absolute counts only; a share-of-share
+    base is treated as unknown to avoid recursion)."""
+    if not flow_ids:
+        return {}
+    rows = db.execute(
+        text("""SELECT id, count, count_lower, count_upper, count_method
+                FROM migration_flows WHERE id = ANY(:ids)"""),
+        {"ids": list(flow_ids)},
+    ).mappings().all()
+    out: dict[int, float] = {}
+    for r in rows:
+        eff = _absolute(dict(r))
+        if eff is not None:
+            out[r["id"]] = eff[0]
+    return out
+
+
+def _resolve_base_population(db, terr_ids: set[int], year: int | None) -> dict[int, float]:
+    """Population base per territory: prefer total_population, else
+    diaspora_stock; pick the stat whose as_of_year is closest to `year`."""
+    if not terr_ids:
+        return {}
+    rows = db.execute(
+        text("""SELECT territory_id, count, as_of_year, stat_kind
+                FROM territory_stats
+                WHERE territory_id = ANY(:ids) AND count IS NOT NULL
+                  AND stat_kind IN ('total_population','diaspora_stock')"""),
+        {"ids": list(terr_ids)},
+    ).mappings().all()
+    best: dict[int, tuple] = {}
+    for r in rows:
+        kind_rank = 1 if r["stat_kind"] == "total_population" else 0
+        dist = abs((r["as_of_year"] or 0) - (year or r["as_of_year"] or 0))
+        key = (kind_rank, -dist)  # higher kind_rank, smaller distance preferred
+        if r["territory_id"] not in best or key > best[r["territory_id"]][0]:
+            best[r["territory_id"]] = (key, float(r["count"]))
+    return {tid: v[1] for tid, v in best.items()}
 
 
 def _label(row: dict[str, Any]) -> str:
@@ -85,6 +127,40 @@ def flow_aggregate(
     }
     rows = {r["id"]: dict(r) for r in db.execute(text(_MATCH_SQL), params).mappings().all()}
     ids = list(rows)
+
+    # Resolve bases for any SHARE flows in the matched set.
+    base_flow_ids = {
+        r["share_base_flow_id"] for r in rows.values()
+        if r["count_method"] == "share" and r["share_base_kind"] == "flow" and r["share_base_flow_id"]
+    }
+    base_terr_ids = {
+        r["share_base_territory_id"] for r in rows.values()
+        if r["count_method"] == "share" and r["share_base_kind"] == "population" and r["share_base_territory_id"]
+    }
+    base_flow_pts = _resolve_base_flow_points(db, base_flow_ids)
+    base_pop = _resolve_base_population(db, base_terr_ids, to_year or from_year)
+
+    def effective(row: dict[str, Any]) -> tuple[float, float, float] | None:
+        if row["count_method"] != "share":
+            return _absolute(row)
+        pct = row["share_pct"]
+        plo, phi = row["share_pct_lower"], row["share_pct_upper"]
+        if pct is None and plo is not None and phi is not None:
+            pct = (plo + phi) / 2
+        if pct is None:
+            return None
+        if row["share_base_kind"] == "flow":
+            base = base_flow_pts.get(row["share_base_flow_id"])
+        elif row["share_base_kind"] == "population":
+            base = base_pop.get(row["share_base_territory_id"])
+        else:
+            base = None
+        if base is None:
+            return None
+        point = pct / 100 * base
+        lo = plo / 100 * base if plo is not None else point
+        hi = phi / 100 * base if phi is not None else point
+        return (point, min(lo, hi), max(lo, hi))
 
     origin_name = db.execute(
         text("SELECT COALESCE(name_local, name) FROM territories WHERE id = :i"),
@@ -154,7 +230,7 @@ def flow_aggregate(
             continue
         a, b = find(r["from_flow_id"]), find(r["to_flow_id"])  # a contains b
         pa, pb = reps[a], reps[b]
-        if pa in rep_ids and pb in rep_ids and pa != pb and _effective(rows[pa]) is not None:
+        if pa in rep_ids and pb in rep_ids and pa != pb and effective(rows[pa]) is not None:
             contained[pb] = pa
 
     contributors_ids = [i for i in rep_ids if i not in contained]
@@ -178,7 +254,7 @@ def flow_aggregate(
     counted_points = []
     any_unknown_count = False
     for i in contributors_ids:
-        eff = _effective(rows[i])
+        eff = effective(rows[i])
         contributors.append({
             "flow_id": i, "label": _label(rows[i]),
             "count": rows[i]["count"], "count_method": rows[i]["count_method"],
@@ -192,7 +268,7 @@ def flow_aggregate(
 
     naive = 0.0
     for i in ids:
-        eff = _effective(rows[i])
+        eff = effective(rows[i])
         if eff is not None:
             naive += eff[0]
 

@@ -43,7 +43,14 @@ export const FlowsList: React.FC = () => {
                     {f.count_lower.toLocaleString("uk")}–{f.count_upper?.toLocaleString("uk")} осіб ·{" "}
                   </span>
                 )}
-                {f.count == null && f.count_lower == null && <span>кількість невідома · </span>}
+                {f.count_method === "share" && f.share_pct != null && (
+                  <span>
+                    {f.share_pct}% {f.share_base_kind === "population" ? "населення" : `потоку #${f.share_base_flow_id}`} ·{" "}
+                  </span>
+                )}
+                {f.count == null && f.count_lower == null && f.count_method !== "share" && (
+                  <span>кількість невідома · </span>
+                )}
                 <span>{f.vector}</span>
               </div>
               <div className="text-[10px] mt-0.5" style={faint}>

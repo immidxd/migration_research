@@ -6,7 +6,8 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-CountMethod = Literal["exact", "estimate", "range", "unknown"]
+CountMethod = Literal["exact", "estimate", "range", "share", "unknown"]
+ShareBaseKind = Literal["flow", "population", "migration_aggregate"]
 DatePrecision = Literal["day", "month", "year", "decade", "period", "unknown"]
 MigrationVector = Literal[
     "transatlantic", "european", "intra_imperial_east",
@@ -38,6 +39,14 @@ class FlowCreate(BaseModel):
     count_upper: int | None = Field(default=None, ge=0)
     count_method: CountMethod = "unknown"
 
+    # SHARE quantity (only when count_method=share).
+    share_pct: float | None = Field(default=None, ge=0, le=100)
+    share_pct_lower: float | None = Field(default=None, ge=0, le=100)
+    share_pct_upper: float | None = Field(default=None, ge=0, le=100)
+    share_base_kind: ShareBaseKind | None = None
+    share_base_flow_id: int | None = None
+    share_base_territory_id: int | None = None
+
     vector: MigrationVector
     transport_mode: TransportMode = "unknown"
     origin_precision: PrecisionLevel
@@ -62,6 +71,16 @@ class FlowCreate(BaseModel):
             raise ValueError(
                 "count_method=unknown means we don't know — leave count fields blank"
             )
+        if self.count_method == "share":
+            # A share is meaningless without a percentage AND an explicit base.
+            if self.share_pct is None and (self.share_pct_lower is None or self.share_pct_upper is None):
+                raise ValueError("count_method=share requires share_pct (or share_pct_lower+upper)")
+            if self.share_base_kind is None:
+                raise ValueError("count_method=share requires share_base_kind")
+            if self.share_base_kind == "flow" and self.share_base_flow_id is None:
+                raise ValueError("share of a flow requires share_base_flow_id")
+            if self.share_base_kind == "population" and self.share_base_territory_id is None:
+                raise ValueError("share of population requires share_base_territory_id")
         return self
 
 
@@ -77,6 +96,12 @@ class FlowUpdate(BaseModel):
     count_lower: int | None = None
     count_upper: int | None = None
     count_method: CountMethod | None = None
+    share_pct: float | None = None
+    share_pct_lower: float | None = None
+    share_pct_upper: float | None = None
+    share_base_kind: ShareBaseKind | None = None
+    share_base_flow_id: int | None = None
+    share_base_territory_id: int | None = None
     vector: MigrationVector | None = None
     transport_mode: TransportMode | None = None
     origin_precision: PrecisionLevel | None = None
@@ -109,6 +134,12 @@ class FlowOut(BaseModel):
     count_lower: int | None
     count_upper: int | None
     count_method: str
+    share_pct: float | None = None
+    share_pct_lower: float | None = None
+    share_pct_upper: float | None = None
+    share_base_kind: str | None = None
+    share_base_flow_id: int | None = None
+    share_base_territory_id: int | None = None
     vector: str
     transport_mode: str
     origin_precision: str

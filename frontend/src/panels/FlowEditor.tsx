@@ -3,7 +3,7 @@ import { Drawer, Form, Input, InputNumber, Radio, Select, Button, Modal, message
 
 type TimeMode = "label" | "year" | "range";
 
-import { useCreateFlow, useCreateSource, useFlow, useUpdateFlow } from "../api/flows";
+import { useCreateFlow, useCreateSource, useFlow, useFlows, useUpdateFlow } from "../api/flows";
 import {
   RelationKind,
   useCreateRelation,
@@ -116,10 +116,16 @@ export const FlowEditor: React.FC<{
   const [originPrec, setOriginPrec] = useState<string>("gubernia");
   const [destPrec, setDestPrec] = useState<string>("region");
 
-  const [countMethod, setCountMethod] = useState<"exact" | "estimate" | "range" | "unknown">("exact");
+  const [countMethod, setCountMethod] = useState<"exact" | "estimate" | "range" | "share" | "unknown">("exact");
   const [count, setCount] = useState<number | null>(null);
   const [countLower, setCountLower] = useState<number | null>(null);
   const [countUpper, setCountUpper] = useState<number | null>(null);
+  // SHARE quantity
+  const [sharePct, setSharePct] = useState<number | null>(null);
+  const [shareBaseKind, setShareBaseKind] = useState<"flow" | "population">("flow");
+  const [shareBaseFlowId, setShareBaseFlowId] = useState<number | null>(null);
+  const [shareBaseTerrId, setShareBaseTerrId] = useState<number | null>(null);
+  const [shareBaseTerrRow, setShareBaseTerrRow] = useState<TerritorySearchRow | null>(null);
 
   const [notes, setNotes] = useState<string>("");
   const [sourceIds, setSourceIds] = useState<number[]>([]);
@@ -129,6 +135,7 @@ export const FlowEditor: React.FC<{
   const createFlow = useCreateFlow();
   const updateFlow = useUpdateFlow();
   const flowQ = useFlow(open ? flowId : null);
+  const flowsForBaseQ = useFlows();
 
   // Prefill from the loaded flow when editing; clear back to defaults when
   // opening for a new flow. Keyed on the editor opening / target changing.
@@ -160,6 +167,10 @@ export const FlowEditor: React.FC<{
     setCount(f.count);
     setCountLower(f.count_lower);
     setCountUpper(f.count_upper);
+    setSharePct(f.share_pct ?? null);
+    setShareBaseKind((f.share_base_kind as "flow" | "population") ?? "flow");
+    setShareBaseFlowId(f.share_base_flow_id ?? null);
+    setShareBaseTerrId(f.share_base_territory_id ?? null);
     setNotes(f.notes ?? "");
     setSourceIds(f.sources.map((s) => s.source_id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -173,6 +184,8 @@ export const FlowEditor: React.FC<{
     setVector("intra_imperial_east"); setTransport("rail");
     setOriginPrec("gubernia"); setDestPrec("region");
     setCountMethod("exact"); setCount(null); setCountLower(null); setCountUpper(null);
+    setSharePct(null); setShareBaseKind("flow"); setShareBaseFlowId(null);
+    setShareBaseTerrId(null); setShareBaseTerrRow(null);
     setNotes(""); setSourceIds([]);
   };
 
@@ -233,6 +246,15 @@ export const FlowEditor: React.FC<{
       message.error("Для діапазону потрібні нижня і верхня межа");
       return;
     }
+    if (countMethod === "share") {
+      if (sharePct == null) { message.error("Вкажіть відсоток"); return; }
+      if (shareBaseKind === "flow" && shareBaseFlowId == null) {
+        message.error("Оберіть базовий потік для частки"); return;
+      }
+      if (shareBaseKind === "population" && shareBaseTerrId == null) {
+        message.error("Оберіть територію для частки від населення"); return;
+      }
+    }
     const t = resolveTime();
     if (!t) return;
     const payload = {
@@ -243,6 +265,10 @@ export const FlowEditor: React.FC<{
       count_lower: countMethod === "range" ? countLower : null,
       count_upper: countMethod === "range" ? countUpper : null,
       count_method: countMethod,
+      share_pct: countMethod === "share" ? sharePct : null,
+      share_base_kind: countMethod === "share" ? shareBaseKind : null,
+      share_base_flow_id: countMethod === "share" && shareBaseKind === "flow" ? shareBaseFlowId : null,
+      share_base_territory_id: countMethod === "share" && shareBaseKind === "population" ? shareBaseTerrId : null,
       vector, transport_mode: transport,
       origin_precision: originPrec,
       destination_precision: destPrec,
@@ -414,9 +440,57 @@ export const FlowEditor: React.FC<{
               <Radio.Button value="exact">точно</Radio.Button>
               <Radio.Button value="estimate">оцінка</Radio.Button>
               <Radio.Button value="range">діапазон</Radio.Button>
+              <Radio.Button value="share">частка</Radio.Button>
               <Radio.Button value="unknown">невідомо</Radio.Button>
             </Radio.Group>
           </Form.Item>
+
+          {countMethod === "share" && (
+            <>
+              <Form.Item label="Відсоток (%)" required help="Частка від явно вказаної бази">
+                <InputNumber
+                  min={0} max={100} value={sharePct ?? undefined}
+                  onChange={(v) => setSharePct(v != null ? Number(v) : null)}
+                  style={{ width: "100%" }}
+                />
+              </Form.Item>
+              <Form.Item label="База частки" required>
+                <Radio.Group value={shareBaseKind} onChange={(e) => setShareBaseKind(e.target.value)}>
+                  <Radio.Button value="flow">від іншого потоку</Radio.Button>
+                  <Radio.Button value="population">від населення</Radio.Button>
+                </Radio.Group>
+              </Form.Item>
+              {shareBaseKind === "flow" && (
+                <Form.Item label="Базовий потік" required>
+                  <Select
+                    showSearch optionFilterProp="label"
+                    placeholder="оберіть потік…"
+                    value={shareBaseFlowId ?? undefined}
+                    onChange={(v) => setShareBaseFlowId(v ?? null)}
+                    getPopupContainer={drawerBodyOrSelf}
+                    options={(flowsForBaseQ.data ?? [])
+                      .filter((fl) => fl.id !== flowId)
+                      .map((fl) => ({
+                        value: fl.id,
+                        label: `#${fl.id} ${fl.origin_name} → ${fl.destination_name}` +
+                          (fl.count != null ? ` (${fl.count.toLocaleString("uk")})` : ""),
+                      }))}
+                    style={{ width: "100%" }}
+                  />
+                </Form.Item>
+              )}
+              {shareBaseKind === "population" && (
+                <Form.Item label="Територія (база населення)" required>
+                  <TerritoryPicker
+                    value={shareBaseTerrId}
+                    initialRow={shareBaseTerrRow}
+                    onChange={(id, row) => { setShareBaseTerrId(id); setShareBaseTerrRow(row); }}
+                    placeholder="територія…"
+                  />
+                </Form.Item>
+              )}
+            </>
+          )}
 
           {(countMethod === "exact" || countMethod === "estimate") && (
             <Form.Item label="Кількість осіб">

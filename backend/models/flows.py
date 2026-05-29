@@ -19,6 +19,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -33,6 +34,7 @@ from .enums import (
     DatePrecision,
     MigrationVector,
     PrecisionLevel,
+    ShareBaseKind,
     TransportMode,
     enum_values,
 )
@@ -77,6 +79,22 @@ class MigrationFlow(Base):
         Enum(CountMethod, name="count_method", values_callable=enum_values),
         nullable=False,
         server_default=CountMethod.UNKNOWN.value,
+    )
+
+    # SHARE quantity: a percentage of an explicit base. Only meaningful when
+    # count_method=share. The resolver multiplies share_pct by the base's
+    # resolved magnitude. A share with no base is rejected at the API layer.
+    share_pct: Mapped[float | None] = mapped_column(Float)
+    share_pct_lower: Mapped[float | None] = mapped_column(Float)
+    share_pct_upper: Mapped[float | None] = mapped_column(Float)
+    share_base_kind: Mapped[ShareBaseKind | None] = mapped_column(
+        Enum(ShareBaseKind, name="share_base_kind", values_callable=enum_values)
+    )
+    share_base_flow_id: Mapped[int | None] = mapped_column(
+        ForeignKey("migration_flows.id", ondelete="SET NULL"), index=True
+    )
+    share_base_territory_id: Mapped[int | None] = mapped_column(
+        ForeignKey("territories.id", ondelete="SET NULL"), index=True
     )
 
     vector: Mapped[MigrationVector] = mapped_column(
